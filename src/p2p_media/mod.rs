@@ -9,61 +9,12 @@ use libp2p::{
     tcp, wasm_ext, webrtc, websocket, yamux, PeerId, Transport,
 };
 use std::{io, iter, num::NonZeroU32, time::Duration};
+
 mod segment_protocol;
 mod event_loop;
+mod behaviour;
 
-mod test;
-
-#[derive(swarm::NetworkBehaviour)]
-#[behaviour(out_event = "OutEvent")]
-// Handles all the protocols for the swarm.
-pub struct MyBehaviour {
-    // ? Is Ping useful?
-    ping: ping::Behaviour,
-    // ? Should we use STUN instead of AutoNAT?
-    autonat: autonat::Behaviour,
-    // * Kademlia is a DHT. Peers advertise themselves as a provider for their file on it.
-    kademlia: kad::Kademlia<kad::store::MemoryStore>,
-    // * Request/Response mesages. Used by peers to send/receive files
-    request_response: rr::Behaviour<segment_protocol::SegmentExchangeCodec>,
-}
-// The swarm will output events of this type.
-#[derive(Debug)]
-pub enum OutEvent {
-    Ping(ping::Event),
-    Autonat(autonat::Event),
-    Kademlia(kad::KademliaEvent),
-    SegmentExchange(rr::Event<segment_protocol::SegmentRequest, segment_protocol::SegmentResponse>),
-}
-// We need to implement From<ping::Event> for OutEvent so that the swarm can
-// convert the ping events into the swarm events.
-impl From<ping::Event> for OutEvent {
-    fn from(e: ping::Event) -> Self {
-        OutEvent::Ping(e)
-    }
-}
-
-impl From<autonat::Event> for OutEvent {
-    fn from(e: autonat::Event) -> Self {
-        OutEvent::Autonat(e)
-    }
-}
-
-impl From<kad::KademliaEvent> for OutEvent {
-    fn from(e: kad::KademliaEvent) -> Self {
-        OutEvent::Kademlia(e)
-    }
-}
-
-impl From<rr::Event<segment_protocol::SegmentRequest, segment_protocol::SegmentResponse>>
-    for OutEvent
-{
-    fn from(
-        event: rr::Event<segment_protocol::SegmentRequest, segment_protocol::SegmentResponse>,
-    ) -> Self {
-        OutEvent::SegmentExchange(event)
-    }
-}
+use behaviour::ComposedSwarmBehaviour;
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a random PeerId
@@ -100,9 +51,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Default::default(),
         );
 
-        let behaviour = MyBehaviour {
-            ping,
-            autonat,
+        let behaviour = ComposedSwarmBehaviour {
+            //ping,
+            //autonat,
             kademlia,
             request_response,
         };
@@ -111,29 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         swarm::Swarm::with_threadpool_executor(transport, behaviour, local_peer_id)
     };
-
-    swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-
-    loop {
-        let event = swarm.select_next_some().await;
-        match event {
-            SwarmEvent::ConnectionEstablished {
-                peer_id,
-                endpoint,
-                num_established,
-                concurrent_dial_errors,
-                established_in,
-            } => {}
-            SwarmEvent::ConnectionClosed {
-                peer_id,
-                endpoint,
-                num_established,
-                cause,
-            } => {}
-            SwarmEvent::Behaviour(e) => handle_behaviour(e),
-            _ => {}
-        }
-    }
+    Ok(())
 }
 
 async fn create_transport(keypair: &Keypair) -> Result<Boxed<(PeerId, StreamMuxerBox)>, io::Error> {
@@ -146,18 +75,4 @@ async fn create_transport(keypair: &Keypair) -> Result<Boxed<(PeerId, StreamMuxe
             .timeout(Duration::from_secs(20))
             .boxed();
     Ok(dns_tcp)
-}
-
-fn handle_behaviour(e: OutEvent) {
-    match e {
-        OutEvent::Ping(e) => {}
-        OutEvent::Autonat(e) => match e {
-            autonat::Event::StatusChanged { old, .. } => {}
-            _ => {}
-        },
-        OutEvent::Kademlia(e) => match e {
-            _ => {}
-        },
-        OutEvent::SegmentExchange(e) => {}
-    }
 }

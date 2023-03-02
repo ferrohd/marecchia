@@ -17,9 +17,11 @@ libp2p = {version = "^0.51", features = ["full"]}
 rand = "^0.8"
 # Remove when Rust supports async traits
 async-trait = "^0.1"
+# I don't like it
 either = "1.8.1"
-# File System Access API
-#wnfs = "^0.1"
+# I don't like it either
+futures = "0.3.26"
+async-std = "^1.12"
 
 [dependencies.web-sys]
 version = "^0.3"

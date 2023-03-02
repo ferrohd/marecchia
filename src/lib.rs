@@ -2,7 +2,6 @@ use wasm_bindgen::prelude::*;
 
 mod tracker;
 mod p2p_media;
-mod test;
 
 #[wasm_bindgen]
 extern "C" {
