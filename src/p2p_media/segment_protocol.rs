@@ -14,7 +14,7 @@ pub struct SegmentResponse(pub Vec<u8>);
 
 impl ProtocolName for SegmentExchangeProtocol {
     fn protocol_name(&self) -> &[u8] {
-        "/file-exchange/1".as_bytes()
+        "/segment-exchange/1".as_bytes()
     }
 }
 

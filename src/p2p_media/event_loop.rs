@@ -24,7 +24,7 @@ pub struct EventLoop {
 }
 
 impl EventLoop {
-    fn new(
+    pub fn new(
         swarm: Swarm<ComposedSwarmBehaviour>,
         command_receiver: mpsc::Receiver<Command>,
         event_sender: mpsc::Sender<Event>,
@@ -42,7 +42,7 @@ impl EventLoop {
     
     pub async fn run(mut self) {
         loop {
-            futures::select! {
+            libp2p::futures::select! {
                 event = self.swarm.next() => self.handle_event(event.expect("Swarm stream to be infinite.")).await  ,
                 command = self.command_receiver.next() => match command {
                     Some(c) => self.handle_command(c).await,
@@ -251,7 +251,7 @@ impl EventLoop {
 }
 
 #[derive(Debug)]
-enum Command {
+pub enum Command {
     StartListening {
         addr: Multiaddr,
         sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,

@@ -10,6 +10,7 @@ use libp2p::{
 };
 use std::{io, iter, num::NonZeroU32, time::Duration};
 
+mod client;
 mod segment_protocol;
 mod event_loop;
 mod behaviour;
