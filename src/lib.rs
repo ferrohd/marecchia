@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
 
-mod tracker;
 mod p2p_media;
 
 #[wasm_bindgen]
@@ -10,7 +9,7 @@ extern "C" {
 }
 macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-} 
+}
 
 trait StreamStrategy {
     fn new() -> Self;
@@ -34,20 +33,15 @@ impl StreamStrategy for P2PStreamStrategy {
 struct VideoEngine<T: StreamStrategy> {
     stream_strategy: T,
 }
-impl <T: StreamStrategy> VideoEngine<T> {
+impl<T: StreamStrategy> VideoEngine<T> {
     fn new(stream_strategy: T) -> Self {
-        VideoEngine {
-            stream_strategy,
-        }
+        VideoEngine { stream_strategy }
     }
 }
 
-
-
 #[wasm_bindgen(start)]
 async fn main() -> Result<(), JsValue> {
-    
-    
-
+    use crate::p2p_media::client;
+    let client = client::new(None);
     Ok(())
 }

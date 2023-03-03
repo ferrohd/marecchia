@@ -1,16 +1,19 @@
 use async_std::io;
-use std::collections::{hash_map, HashMap, HashSet};
-use std::error::Error;
 use either::Either;
 use libp2p::core::{Multiaddr, PeerId};
-use libp2p::multiaddr::Protocol;
+use libp2p::futures::{
+    channel::{mpsc, oneshot},
+    prelude::*,
+};
 use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult};
+use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{self, RequestId, ResponseChannel};
 use libp2p::swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent};
-use libp2p::futures::{prelude::*, channel::{mpsc, oneshot}};
+use std::collections::{hash_map, HashMap, HashSet};
+use std::error::Error;
 
-use super::segment_protocol::*;
 use super::behaviour::*;
+use super::segment_protocol::*;
 
 pub struct EventLoop {
     swarm: Swarm<ComposedSwarmBehaviour>,
@@ -61,52 +64,9 @@ impl EventLoop {
         >,
     ) {
         match event {
-            SwarmEvent::Behaviour(ComposedSwarmEvent::Kademlia(
-                KademliaEvent::OutboundQueryProgressed {
-                    id,
-                    result: QueryResult::StartProviding(_),
-                    ..
-                },
-            )) => {
-                let sender: oneshot::Sender<()> = self
-                .pending_start_providing
-                .remove(&id)
-                .expect("Completed query to be previously pending.");
-                let _ = sender.send(());
-            }
-            SwarmEvent::Behaviour(ComposedSwarmEvent::Kademlia(
-                KademliaEvent::OutboundQueryProgressed {
-                    id,
-                    result:
-                    QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
-                        providers,
-                        ..
-                    })),
-                    ..
-                },
-            )) => {
-                if let Some(sender) = self.pending_get_providers.remove(&id) {
-                    sender.send(providers).expect("Receiver not to be dropped");
-                    
-                    // Finish the query. We are only interested in the first result.
-                    self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .query_mut(&id)
-                    .unwrap()
-                    .finish();
-                }
-            }
-            SwarmEvent::Behaviour(ComposedSwarmEvent::Kademlia(
-                KademliaEvent::OutboundQueryProgressed {
-                    result:
-                    QueryResult::GetProviders(Ok(
-                        GetProvidersOk::FinishedWithNoAdditionalRecord { .. },
-                    )),
-                    ..
-                },
-            )) => {}
-            SwarmEvent::Behaviour(ComposedSwarmEvent::Kademlia(_)) => {}
+            //SwarmEvent::Behaviour(behaviour_event) => { self.handle_behaviour(behaviour_event).await; },
+        
+
             SwarmEvent::Behaviour(ComposedSwarmEvent::RequestResponse(
                 request_response::Event::Message { message, .. },
             )) => match message {
@@ -177,6 +137,40 @@ impl EventLoop {
         }
     }
     
+    async fn handle_behaviour(&mut self, event: ComposedSwarmEvent) {}
+    async fn handle_kademlia_event(&mut self, event: KademliaEvent) {
+        match event {
+            KademliaEvent::OutboundQueryProgressed {
+                id,
+                result:
+                QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
+                    providers, ..
+                })),
+                ..
+            } => {
+                if let Some(sender) = self.pending_get_providers.remove(&id) {
+                    sender.send(providers).expect("Receiver not to be dropped");
+                    
+                    // Finish the query. We are only interested in the first result.
+                    self.swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .query_mut(&id)
+                    .unwrap()
+                    .finish();
+                }
+            },
+            KademliaEvent::OutboundQueryProgressed {
+                result:
+                QueryResult::GetProviders(Ok(GetProvidersOk::FinishedWithNoAdditionalRecord {
+                    ..
+                })),
+                ..
+            } => {},
+            _ => {}
+        }
+    }
+    
     async fn handle_command(&mut self, command: Command) {
         match command {
             Command::StartListening { addr, sender } => {
@@ -210,7 +204,7 @@ impl EventLoop {
                     todo!("Already dialing peer.");
                 }
             }
-            Command::StartProviding { file_name, sender } => {
+            Command::StartProviding { segment_id: file_name, sender } => {
                 let query_id = self
                 .swarm
                 .behaviour_mut()
@@ -219,7 +213,7 @@ impl EventLoop {
                 .expect("No store error.");
                 self.pending_start_providing.insert(query_id, sender);
             }
-            Command::GetProviders { file_name, sender } => {
+            Command::GetProviders { segment_id: file_name, sender } => {
                 let query_id = self
                 .swarm
                 .behaviour_mut()
@@ -227,8 +221,8 @@ impl EventLoop {
                 .get_providers(file_name.into_bytes().into());
                 self.pending_get_providers.insert(query_id, sender);
             }
-            Command::RequestFile {
-                file_name,
+            Command::RequestSegment {
+                segment_id: file_name,
                 peer,
                 sender,
             } => {
@@ -239,7 +233,7 @@ impl EventLoop {
                 .send_request(&peer, SegmentRequest(file_name));
                 self.pending_request_file.insert(request_id, sender);
             }
-            Command::RespondFile { file, channel } => {
+            Command::RespondSegment { segment_data: file, channel } => {
                 self.swarm
                 .behaviour_mut()
                 .request_response
@@ -262,20 +256,20 @@ pub enum Command {
         sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
     },
     StartProviding {
-        file_name: String,
+        segment_id: String,
         sender: oneshot::Sender<()>,
     },
     GetProviders {
-        file_name: String,
+        segment_id: String,
         sender: oneshot::Sender<HashSet<PeerId>>,
     },
-    RequestFile {
-        file_name: String,
+    RequestSegment {
+        segment_id: String,
         peer: PeerId,
         sender: oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>,
     },
-    RespondFile {
-        file: Vec<u8>,
+    RespondSegment {
+        segment_data: Vec<u8>,
         channel: ResponseChannel<SegmentResponse>,
     },
 }

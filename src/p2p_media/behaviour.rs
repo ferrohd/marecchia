@@ -1,7 +1,11 @@
-use libp2p::{swarm::NetworkBehaviour, kad::{KademliaEvent, Kademlia}, request_response};
 use libp2p::kad::record::store::MemoryStore;
+use libp2p::{
+    kad::{Kademlia, KademliaEvent},
+    request_response,
+    swarm::NetworkBehaviour,
+};
 
-use super::segment_protocol::*;
+use super::segment_protocol::{SegmentExchangeCodec, SegmentRequest, SegmentResponse};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "ComposedSwarmEvent")]
