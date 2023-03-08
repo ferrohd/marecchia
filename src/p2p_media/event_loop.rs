@@ -7,7 +7,7 @@ use libp2p::futures::{
 };
 use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult};
 use libp2p::multiaddr::Protocol;
-use libp2p::request_response::{self, RequestId, ResponseChannel};
+use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
 use libp2p::swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
@@ -23,7 +23,7 @@ pub struct EventLoop {
     pending_start_providing: HashMap<QueryId, oneshot::Sender<()>>,
     pending_get_providers: HashMap<QueryId, oneshot::Sender<HashSet<PeerId>>>,
     pending_request_file:
-    HashMap<RequestId, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
+        HashMap<RequestId, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
 }
 
 impl EventLoop {
@@ -42,7 +42,7 @@ impl EventLoop {
             pending_request_file: Default::default(),
         }
     }
-    
+
     pub async fn run(mut self) {
         loop {
             libp2p::futures::select! {
@@ -55,57 +55,16 @@ impl EventLoop {
             }
         }
     }
-    
+
     async fn handle_event(
         &mut self,
         event: SwarmEvent<
-        ComposedSwarmEvent,
-        Either<ConnectionHandlerUpgrErr<io::Error>, io::Error>,
+            ComposedSwarmEvent,
+            Either<ConnectionHandlerUpgrErr<io::Error>, io::Error>,
         >,
     ) {
         match event {
-            //SwarmEvent::Behaviour(behaviour_event) => { self.handle_behaviour(behaviour_event).await; },
-        
-
-            SwarmEvent::Behaviour(ComposedSwarmEvent::RequestResponse(
-                request_response::Event::Message { message, .. },
-            )) => match message {
-                request_response::Message::Request {
-                    request, channel, ..
-                } => {
-                    self.event_sender
-                    .send(Event::InboundRequest {
-                        request: request.0,
-                        channel,
-                    })
-                    .await
-                    .expect("Event receiver not to be dropped.");
-                }
-                request_response::Message::Response {
-                    request_id,
-                    response,
-                } => {
-                    let _ = self
-                    .pending_request_file
-                    .remove(&request_id)
-                    .expect("Request to still be pending.")
-                    .send(Ok(response.0));
-                }
-            },
-            SwarmEvent::Behaviour(ComposedSwarmEvent::RequestResponse(
-                request_response::Event::OutboundFailure {
-                    request_id, error, ..
-                },
-            )) => {
-                let _ = self
-                .pending_request_file
-                .remove(&request_id)
-                .expect("Request to still be pending.")
-                .send(Err(Box::new(error)));
-            }
-            SwarmEvent::Behaviour(ComposedSwarmEvent::RequestResponse(
-                request_response::Event::ResponseSent { .. },
-            )) => {}
+            SwarmEvent::Behaviour(behaviour) => self.handle_behaviour_event(behaviour).await,
             SwarmEvent::NewListenAddr { address, .. } => {
                 let local_peer_id = *self.swarm.local_peer_id();
                 eprintln!(
@@ -133,44 +92,121 @@ impl EventLoop {
             }
             SwarmEvent::IncomingConnectionError { .. } => {}
             SwarmEvent::Dialing(peer_id) => eprintln!("Dialing {peer_id}"),
-            e => panic!("{e:?}"),
+            SwarmEvent::BannedPeer { .. } => {}
+            SwarmEvent::ExpiredListenAddr { .. } => {}
+            SwarmEvent::ListenerClosed {
+                listener_id,
+                addresses,
+                reason,
+            } => {}
+            SwarmEvent::ListenerError { listener_id, error } => {},
         }
     }
-    
-    async fn handle_behaviour(&mut self, event: ComposedSwarmEvent) {}
-    async fn handle_kademlia_event(&mut self, event: KademliaEvent) {
-        match event {
-            KademliaEvent::OutboundQueryProgressed {
-                id,
-                result:
-                QueryResult::GetProviders(Ok(GetProvidersOk::FoundProviders {
-                    providers, ..
-                })),
-                ..
-            } => {
-                if let Some(sender) = self.pending_get_providers.remove(&id) {
-                    sender.send(providers).expect("Receiver not to be dropped");
-                    
-                    // Finish the query. We are only interested in the first result.
-                    self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .query_mut(&id)
-                    .unwrap()
-                    .finish();
+
+    async fn handle_behaviour_event(&mut self, behaviour_event: ComposedSwarmEvent) {
+        match behaviour_event {
+            ComposedSwarmEvent::Kademlia(event) => self.handle_kademlia_event(event).await,
+            ComposedSwarmEvent::RequestResponse(event) => {
+                self.handle_request_response_event(event).await
+            }
+        }
+    }
+
+    async fn handle_kademlia_event(&mut self, kaemlia_event: KademliaEvent) {
+        match kaemlia_event {
+            KademliaEvent::RoutingUpdated { peer, .. } => {},
+            KademliaEvent::UnroutablePeer { peer } => {},
+            KademliaEvent::PendingRoutablePeer { peer, address } => {},
+            KademliaEvent::RoutablePeer { peer, address } => {},
+            KademliaEvent::InboundRequest { request } => {},
+            KademliaEvent::OutboundQueryProgressed { id, result, stats, step } => {
+                match result {
+                    QueryResult::StartProviding(_) => {
+                        let sender: oneshot::Sender<()> = self
+                            .pending_start_providing
+                            .remove(&id)
+                            .expect("Completed query to be previously pending.");
+                        let _ = sender.send(());
+                    },
+                    QueryResult::GetProviders(result) => {
+                        match result {
+                            Ok(providers_ok) => {
+                                match providers_ok {
+                                    GetProvidersOk::FoundProviders{ providers, key } => {
+                                        if let Some(sender) = self.pending_get_providers.remove(&id) {
+                                            sender.send(providers).expect("Receiver not to be dropped");
+                                            // Finish the query. We are only interested in the first result.
+                                            self.swarm
+                                                .behaviour_mut()
+                                                .kademlia
+                                                .query_mut(&id)
+                                                .unwrap()
+                                                .finish();
+                                        }
+                                    },
+                                    GetProvidersOk::FinishedWithNoAdditionalRecord { closest_peers } => {}
+                                }
+                            }
+                            Err(providers_err) => {}
+                        }
+                        
+                    }
+                    QueryResult::Bootstrap(result) => {},
+                    QueryResult::GetRecord(result) => {},
+                    QueryResult::PutRecord(result) => {},
+                    QueryResult::GetClosestPeers(result) => {},
+                    _ => {}
+
                 }
             },
-            KademliaEvent::OutboundQueryProgressed {
-                result:
-                QueryResult::GetProviders(Ok(GetProvidersOk::FinishedWithNoAdditionalRecord {
-                    ..
-                })),
-                ..
-            } => {},
-            _ => {}
         }
     }
-    
+    async fn handle_request_response_event(
+        &mut self,
+        request_response_event: RequestResponseEvent<SegmentRequest, SegmentResponse>,
+    ) {
+        match request_response_event {
+            RequestResponseEvent::Message { message, .. } => match message {
+                request_response::Message::Request {
+                    request, channel, ..
+                } => {
+                    self.event_sender
+                        .send(Event::InboundRequest {
+                            request: request.0,
+                            channel,
+                        })
+                        .await
+                        .expect("Event receiver not to be dropped.");
+                }
+                request_response::Message::Response {
+                    request_id,
+                    response,
+                } => {
+                    let _ = self
+                        .pending_request_file
+                        .remove(&request_id)
+                        .expect("Request to still be pending.")
+                        .send(Ok(response.0));
+                }
+            },
+            RequestResponseEvent::OutboundFailure {
+                request_id, error, ..
+            } => {
+                let _ = self
+                    .pending_request_file
+                    .remove(&request_id)
+                    .expect("Request to still be pending.")
+                    .send(Err(Box::new(error)));
+            }
+            RequestResponseEvent::InboundFailure {
+                peer,
+                request_id,
+                error,
+            } => {}
+            RequestResponseEvent::ResponseSent { .. } => {}
+        }
+    }
+
     async fn handle_command(&mut self, command: Command) {
         match command {
             Command::StartListening { addr, sender } => {
@@ -184,14 +220,15 @@ impl EventLoop {
                 peer_addr,
                 sender,
             } => {
+                // If not already dialing, dial the peer.
                 if let hash_map::Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
                     self.swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .add_address(&peer_id, peer_addr.clone());
+                        .behaviour_mut()
+                        .kademlia
+                        .add_address(&peer_id, peer_addr.clone());
                     match self
-                    .swarm
-                    .dial(peer_addr.with(Protocol::P2p(peer_id.into())))
+                        .swarm
+                        .dial(peer_addr.with(Protocol::P2p(peer_id.into())))
                     {
                         Ok(()) => {
                             e.insert(sender);
@@ -200,25 +237,29 @@ impl EventLoop {
                             let _ = sender.send(Err(Box::new(e)));
                         }
                     }
-                } else {
-                    todo!("Already dialing peer.");
                 }
             }
-            Command::StartProviding { segment_id: file_name, sender } => {
+            Command::StartProviding {
+                segment_id: file_name,
+                sender,
+            } => {
                 let query_id = self
-                .swarm
-                .behaviour_mut()
-                .kademlia
-                .start_providing(file_name.into_bytes().into())
-                .expect("No store error.");
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .start_providing(file_name.into_bytes().into())
+                    .expect("No store error.");
                 self.pending_start_providing.insert(query_id, sender);
             }
-            Command::GetProviders { segment_id: file_name, sender } => {
+            Command::GetProviders {
+                segment_id: file_name,
+                sender,
+            } => {
                 let query_id = self
-                .swarm
-                .behaviour_mut()
-                .kademlia
-                .get_providers(file_name.into_bytes().into());
+                    .swarm
+                    .behaviour_mut()
+                    .kademlia
+                    .get_providers(file_name.into_bytes().into());
                 self.pending_get_providers.insert(query_id, sender);
             }
             Command::RequestSegment {
@@ -227,18 +268,21 @@ impl EventLoop {
                 sender,
             } => {
                 let request_id = self
-                .swarm
-                .behaviour_mut()
-                .request_response
-                .send_request(&peer, SegmentRequest(file_name));
+                    .swarm
+                    .behaviour_mut()
+                    .request_response
+                    .send_request(&peer, SegmentRequest(file_name));
                 self.pending_request_file.insert(request_id, sender);
             }
-            Command::RespondSegment { segment_data: file, channel } => {
+            Command::RespondSegment {
+                segment_data: file,
+                channel,
+            } => {
                 self.swarm
-                .behaviour_mut()
-                .request_response
-                .send_response(channel, SegmentResponse(file))
-                .expect("Connection to peer to be still open.");
+                    .behaviour_mut()
+                    .request_response
+                    .send_response(channel, SegmentResponse(file))
+                    .expect("Connection to peer to be still open.");
             }
         }
     }
