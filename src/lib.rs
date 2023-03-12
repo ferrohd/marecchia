@@ -1,6 +1,6 @@
 use wasm_bindgen::prelude::*;
 
-mod p2p_media;
+mod p2p;
 
 #[wasm_bindgen]
 extern "C" {
@@ -41,7 +41,7 @@ impl<T: StreamStrategy> VideoEngine<T> {
 
 #[wasm_bindgen(start)]
 async fn main() -> Result<(), JsValue> {
-    use crate::p2p_media::client;
+    use crate::p2p::client;
     let client = client::new(None);
     Ok(())
 }

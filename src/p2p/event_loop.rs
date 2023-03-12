@@ -5,7 +5,7 @@ use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
 };
-use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult};
+use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult, GetProvidersError};
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
 use libp2p::swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent};
@@ -66,6 +66,7 @@ impl EventLoop {
         match event {
             SwarmEvent::Behaviour(behaviour) => self.handle_behaviour_event(behaviour).await,
             SwarmEvent::NewListenAddr { address, .. } => {
+                // Started listening on a new address.
                 let local_peer_id = *self.swarm.local_peer_id();
                 eprintln!(
                     "Local node is listening on {:?}",
@@ -99,7 +100,7 @@ impl EventLoop {
                 addresses,
                 reason,
             } => {}
-            SwarmEvent::ListenerError { listener_id, error } => {},
+            SwarmEvent::ListenerError { listener_id, error } => {}
         }
     }
 
@@ -114,28 +115,38 @@ impl EventLoop {
 
     async fn handle_kademlia_event(&mut self, kaemlia_event: KademliaEvent) {
         match kaemlia_event {
-            KademliaEvent::RoutingUpdated { peer, .. } => {},
-            KademliaEvent::UnroutablePeer { peer } => {},
-            KademliaEvent::PendingRoutablePeer { peer, address } => {},
-            KademliaEvent::RoutablePeer { peer, address } => {},
-            KademliaEvent::InboundRequest { request } => {},
-            KademliaEvent::OutboundQueryProgressed { id, result, stats, step } => {
+            KademliaEvent::RoutingUpdated { peer, .. } => {}
+            KademliaEvent::UnroutablePeer { peer } => {}
+            KademliaEvent::PendingRoutablePeer { peer, address } => {}
+            KademliaEvent::RoutablePeer { peer, address } => {}
+            KademliaEvent::InboundRequest { request } => {}
+            KademliaEvent::OutboundQueryProgressed {
+                id,
+                result,
+                stats,
+                step,
+            } => {
                 match result {
                     QueryResult::StartProviding(_) => {
+                        // Start providing the segment. Emit event.
                         let sender: oneshot::Sender<()> = self
                             .pending_start_providing
                             .remove(&id)
                             .expect("Completed query to be previously pending.");
                         let _ = sender.send(());
-                    },
+                    }
                     QueryResult::GetProviders(result) => {
                         match result {
                             Ok(providers_ok) => {
                                 match providers_ok {
-                                    GetProvidersOk::FoundProviders{ providers, key } => {
-                                        if let Some(sender) = self.pending_get_providers.remove(&id) {
-                                            sender.send(providers).expect("Receiver not to be dropped");
-                                            // Finish the query. We are only interested in the first result.
+                                    GetProvidersOk::FoundProviders { providers, key } => {
+                                        // Found providers of the segment. Emit event.
+                                        if let Some(sender) = self.pending_get_providers.remove(&id)
+                                        {
+                                            sender
+                                                .send(providers)
+                                                .expect("Receiver not to be dropped");
+                                            // Finish the query. We are only interested in the first result. Tell the swarm to stop querying.
                                             self.swarm
                                                 .behaviour_mut()
                                                 .kademlia
@@ -143,22 +154,34 @@ impl EventLoop {
                                                 .unwrap()
                                                 .finish();
                                         }
-                                    },
-                                    GetProvidersOk::FinishedWithNoAdditionalRecord { closest_peers } => {}
+                                    }
+                                    GetProvidersOk::FinishedWithNoAdditionalRecord {
+                                        closest_peers,
+                                    } => {
+                                        // No providers of the segment found.
+                                        // ! Start downloading from the CDN. 
+                                        // ? Should we try to find providers of the next segment?
+                                    }
                                 }
                             }
-                            Err(providers_err) => {}
+                            Err(providers_err) => match providers_err {
+                                GetProvidersError::Timeout { key, closest_peers } => {
+                                    // The query of the segment timed out.
+                                    // ? Should we use the timeout to force a threshold within the segment must be found? 
+                                    // ! Start downloading from the CDN.
+                                }
+                            }
                         }
-                        
                     }
-                    QueryResult::Bootstrap(result) => {},
-                    QueryResult::GetRecord(result) => {},
-                    QueryResult::PutRecord(result) => {},
-                    QueryResult::GetClosestPeers(result) => {},
-                    _ => {}
-
+                    // The Kademlia DHT is used to find owners of a segment.
+                    // The segment is not stored in the DHT. The value of a key is never accessed. 
+                    QueryResult::Bootstrap(result) => {}
+                    QueryResult::GetRecord(result) => {}
+                    QueryResult::PutRecord(result) => {}
+                    QueryResult::GetClosestPeers(result) => {}
+                    _ => {} // Ignore events from automatic queries.
                 }
-            },
+            }
         }
     }
     async fn handle_request_response_event(
@@ -170,6 +193,7 @@ impl EventLoop {
                 request_response::Message::Request {
                     request, channel, ..
                 } => {
+                    // Received a segment request, emit it.
                     self.event_sender
                         .send(Event::InboundRequest {
                             request: request.0,
@@ -182,6 +206,7 @@ impl EventLoop {
                     request_id,
                     response,
                 } => {
+                    // Received a segment response, remove from the pending requests and emit it. (Enjoy your mojito)
                     let _ = self
                         .pending_request_file
                         .remove(&request_id)
@@ -192,6 +217,7 @@ impl EventLoop {
             RequestResponseEvent::OutboundFailure {
                 request_id, error, ..
             } => {
+                // The request failed, remove from the pending requests and emit an error.
                 let _ = self
                     .pending_request_file
                     .remove(&request_id)

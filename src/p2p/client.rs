@@ -1,21 +1,24 @@
-use std::{collections::HashSet, error::Error, iter, time::Duration, io, num::NonZeroU32};
+use std::{collections::HashSet, error::Error, io, iter, num::NonZeroU32, time::Duration};
 
 use async_std::stream::Stream;
 use libp2p::{
+    autonat,
+    core::{self, muxing::StreamMuxerBox, transport::Boxed},
+    dns,
     futures::{
         channel::{mpsc, oneshot},
         SinkExt,
     },
     identity::{self, ed25519, Keypair},
-    kad::{store::MemoryStore, Kademlia, self},
-    request_response::{self, ProtocolSupport, ResponseChannel},
-    Multiaddr, PeerId, Swarm, core::{self, transport::Boxed, muxing::StreamMuxerBox}, dns, tcp, yamux, noise, Transport, ping, autonat, swarm,
+    kad, noise, ping,
+    request_response::{self, ResponseChannel},
+    swarm, tcp, yamux, Multiaddr, PeerId, Transport,
 };
 
 use super::{
     behaviour::ComposedSwarmBehaviour,
     event_loop::{Command, Event, EventLoop},
-    segment_protocol::{SegmentExchangeCodec, SegmentExchangeProtocol, SegmentResponse, self}
+    segment_protocol::{self, SegmentResponse},
 };
 
 pub async fn new(
@@ -35,7 +38,9 @@ pub async fn new(
     };
     let peer_id = keypair.public().to_peer_id();
 
-    let transport = create_transport(&keypair).await.expect("Cannot create transport");
+    let transport = create_transport(&keypair)
+        .await
+        .expect("Cannot create transport");
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
     let swarm = {
@@ -159,9 +164,16 @@ impl Client {
     }
 
     /// Respond with the provided file content to the given request.
-    pub async fn respond_segment(&mut self, file: Vec<u8>, channel: ResponseChannel<SegmentResponse>) {
+    pub async fn respond_segment(
+        &mut self,
+        file: Vec<u8>,
+        channel: ResponseChannel<SegmentResponse>,
+    ) {
         self.sender
-            .send(Command::RespondSegment { segment_data: file, channel })
+            .send(Command::RespondSegment {
+                segment_data: file,
+                channel,
+            })
             .await
             .expect("Command receiver not to be dropped.");
     }
