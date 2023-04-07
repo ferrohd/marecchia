@@ -12,6 +12,7 @@ wasm-bindgen-futures = "^0.4"
 js-sys = "^0.3"
 serde = { version ="^1.0", features = ["derive"] }
 rmp-serde = "^1.1"
+hls_m3u8 = "^0.4"
 
 libp2p = {version = "^0.51", features = ["full"]}
 # Remove when Rust supports async traits
@@ -26,6 +27,10 @@ features = [
     "Window",
     "console",
     "MessageEvent",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
     "RtcPeerConnection",
     "RtcSignalingState",
     "RtcSdpType",
