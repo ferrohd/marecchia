@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 mod p2p;
 mod http;
 mod loader;
+mod storage;
 
 #[wasm_bindgen]
 extern "C" {

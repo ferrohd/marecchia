@@ -1,5 +1,4 @@
-use hls_m3u8;
-use js_sys::JsString;
+use m3u8_rs;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
@@ -7,28 +6,28 @@ use web_sys::{Request, RequestInit, RequestMode, Response};
 static HLS_URL: &str = "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8";
 
 // Fetch the HLS playlist from WASM
-async fn get_playlist(url: &str) -> Result<hls_m3u8::MasterPlaylist, hls_m3u8::Error> {
+async fn get_playlist(url: &str) -> Result<m3u8_rs::MasterPlaylist, ()> {
     let mut opts = RequestInit::new();
     opts.method("GET");
     opts.mode(RequestMode::Cors);
 
     let request =
-        Request::new_with_str_and_init(&url, &opts).map_err(|x| hls_m3u8::Error::from(x))?;
+        Request::new_with_str_and_init(&url, &opts).unwrap();
 
     let window = web_sys::window().unwrap();
     let resp_value = JsFuture::from(window.fetch_with_request(&request))
         .await
-        .map_err(|_| hls_m3u8::Error::InvalidPlaylist)?;
+        .unwrap();
 
     let resp: Response = resp_value.unchecked_into::<Response>();
 
     if resp.status() != 200 {
-        return Err(hls_m3u8::Error::InvalidPlaylist);
+        return Err(());
     }
 
     let data = resp.as_string().unwrap();
 
-    let playlist = data.as_ref().parse()?;
+    let playlist = m3u8_rs::parse_master_playlist_res(data.as_bytes()).unwrap();
     
     Ok(playlist)
 }
