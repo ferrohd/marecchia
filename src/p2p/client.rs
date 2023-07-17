@@ -1,4 +1,4 @@
-use std::{collections::HashSet, error::Error, io, iter, num::NonZeroU32, time::Duration};
+use std::{collections::HashSet, error::Error, io, iter, time::Duration};
 
 use async_std::stream::Stream;
 use libp2p::{
@@ -9,9 +9,9 @@ use libp2p::{
         channel::{mpsc, oneshot},
         SinkExt,
     },
-    identity::{self, ed25519, Keypair},
+    identity::{self, Keypair},
     kad, noise, ping,
-    request_response::{self, ResponseChannel},
+    request_response::{self, ProtocolSupport, ResponseChannel},
     swarm, tcp, yamux, Multiaddr, PeerId, Transport,
 };
 
@@ -29,10 +29,9 @@ pub async fn new(
         Some(seed) => {
             let mut bytes = [0u8; 32];
             bytes[0] = seed;
-            let secret_key = ed25519::SecretKey::from_bytes(&mut bytes).expect(
+            identity::Keypair::ed25519_from_bytes(&mut bytes).expect(
                 "this returns `Err` only if the length is wrong; the length is correct; qed",
-            );
-            identity::Keypair::Ed25519(secret_key.into())
+            )
         }
         None => identity::Keypair::generate_ed25519(),
     };
@@ -46,7 +45,6 @@ pub async fn new(
     let swarm = {
         // Define the various behaviours of the swarm.
         let ping_config = ping::Config::new()
-            .with_max_failures(NonZeroU32::new(1).unwrap())
             .with_timeout(Duration::from_secs(5))
             .with_interval(Duration::from_secs(5));
         let ping = ping::Behaviour::new(ping_config);
@@ -58,13 +56,12 @@ pub async fn new(
         let kademlia_store = kad::store::MemoryStore::new(peer_id);
         let kademlia = kad::Kademlia::with_config(peer_id, kademlia_store, kademlia_config);
 
-        let rr_codec = segment_protocol::SegmentExchangeCodec();
+        // Not needed, SegmentExchangeProtocol implements Codec and Default, gets instantiated in request_response::Behaviour::new
+        //let rr_codec = segment_protocol::SegmentExchangeCodec();
         let rr_protocol = segment_protocol::SegmentExchangeProtocol();
         let request_response = request_response::Behaviour::new(
-            rr_codec,
-            // ! Pro Tip: Multiple protocols can be used here.
-            iter::once((rr_protocol, request_response::ProtocolSupport::Full)),
-            Default::default(),
+            [(rr_protocol, ProtocolSupport::Full)],
+            request_response::Config::default(),
         );
 
         let behaviour = ComposedSwarmBehaviour {
@@ -76,7 +73,9 @@ pub async fn new(
 
         // Do wthings with behaviours
 
-        swarm::Swarm::with_threadpool_executor(transport, behaviour, peer_id)
+        swarm::SwarmBuilder::with_async_std_executor(transport, behaviour, peer_id)
+            .max_negotiating_inbound_streams(10)
+            .build()
     };
 
     let (command_sender, command_receiver) = mpsc::channel(0);
@@ -184,8 +183,8 @@ async fn create_transport(keypair: &Keypair) -> Result<Boxed<(PeerId, StreamMuxe
         dns::DnsConfig::system(tcp::tokio::Transport::new(tcp::Config::new().nodelay(true)))
             .await?
             .upgrade(core::upgrade::Version::V1)
-            .authenticate(noise::NoiseAuthenticated::xx(&keypair).unwrap())
-            .multiplex(yamux::YamuxConfig::default())
+            .authenticate(noise::Config::new(&keypair).unwrap())
+            .multiplex(yamux::Config::default())
             .timeout(Duration::from_secs(20))
             .boxed();
     Ok(dns_tcp)

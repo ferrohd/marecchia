@@ -8,7 +8,7 @@ use libp2p::{
 use super::segment_protocol::{SegmentExchangeCodec, SegmentRequest, SegmentResponse};
 
 #[derive(NetworkBehaviour)]
-#[behaviour(out_event = "ComposedSwarmEvent")]
+#[behaviour(to_swarm = "ComposedSwarmEvent")]
 pub struct ComposedSwarmBehaviour {
     pub request_response: request_response::Behaviour<SegmentExchangeCodec>,
     pub kademlia: Kademlia<MemoryStore>,

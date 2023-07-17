@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use libp2p::futures::prelude::*;
 use libp2p::{
     core::upgrade::{read_length_prefixed, write_length_prefixed},
-    request_response::{self, ProtocolName},
+    request_response
 };
 
 #[derive(Debug, Clone)]
@@ -15,9 +15,15 @@ pub struct SegmentRequest(pub String);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SegmentResponse(pub Vec<u8>);
 
-impl ProtocolName for SegmentExchangeProtocol {
-    fn protocol_name(&self) -> &[u8] {
-        "/segment-exchange/1".as_bytes()
+impl AsRef<str> for SegmentExchangeProtocol {
+    fn as_ref(&self) -> &str {
+        "/segment-exchange/1"
+    }
+}
+
+impl Default for SegmentExchangeCodec {
+    fn default() -> Self {
+        SegmentExchangeCodec()
     }
 }
 

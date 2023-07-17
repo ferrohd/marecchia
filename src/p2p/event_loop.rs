@@ -1,6 +1,7 @@
 use async_std::io;
 use either::Either;
-use libp2p::core::{Multiaddr, PeerId};
+use libp2p::PeerId;
+use libp2p::core::Multiaddr;
 use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
@@ -8,7 +9,7 @@ use libp2p::futures::{
 use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult, GetProvidersError};
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
-use libp2p::swarm::{ConnectionHandlerUpgrErr, Swarm, SwarmEvent};
+use libp2p::swarm::{Swarm, SwarmEvent};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
 
@@ -60,7 +61,7 @@ impl EventLoop {
         &mut self,
         event: SwarmEvent<
             ComposedSwarmEvent,
-            Either<ConnectionHandlerUpgrErr<io::Error>, io::Error>,
+            Either<void::Void, io::Error>,
         >,
     ) {
         match event {
@@ -92,8 +93,7 @@ impl EventLoop {
                 }
             }
             SwarmEvent::IncomingConnectionError { .. } => {}
-            SwarmEvent::Dialing(peer_id) => eprintln!("Dialing {peer_id}"),
-            SwarmEvent::BannedPeer { .. } => {}
+            SwarmEvent::Dialing {peer_id, connection_id} => println!("Dialing user with conn_id {:?} and peer_id {:?}", connection_id, peer_id.unwrap()),
             SwarmEvent::ExpiredListenAddr { .. } => {}
             SwarmEvent::ListenerClosed {
                 listener_id,
