@@ -58,22 +58,22 @@ pub async fn new(
 
         // Not needed, SegmentExchangeProtocol implements Codec and Default, gets instantiated in request_response::Behaviour::new
         //let rr_codec = segment_protocol::SegmentExchangeCodec();
-        let rr_protocol = segment_protocol::SegmentExchangeProtocol();
+        let segment_protocol = segment_protocol::SegmentExchangeProtocol();
         let request_response = request_response::Behaviour::new(
-            [(rr_protocol, ProtocolSupport::Full)],
+            [(segment_protocol, ProtocolSupport::Full)],
             request_response::Config::default(),
         );
 
         let behaviour = ComposedSwarmBehaviour {
-            //ping,
+            ping,
             //autonat,
             kademlia,
-            request_response,
+            segment_rr: request_response,
         };
 
         // Do wthings with behaviours
 
-        swarm::SwarmBuilder::with_async_std_executor(transport, behaviour, peer_id)
+        swarm::SwarmBuilder::with_wasm_executor(transport, behaviour, peer_id)
             .max_negotiating_inbound_streams(10)
             .build()
     };

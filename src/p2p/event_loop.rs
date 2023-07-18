@@ -1,6 +1,6 @@
 use async_std::io;
 use either::Either;
-use libp2p::PeerId;
+use libp2p::{PeerId, ping};
 use libp2p::core::Multiaddr;
 use libp2p::futures::{
     channel::{mpsc, oneshot},
@@ -10,6 +10,7 @@ use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult, GetProvid
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
 use libp2p::swarm::{Swarm, SwarmEvent};
+use void::Void;
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
 
@@ -61,7 +62,7 @@ impl EventLoop {
         &mut self,
         event: SwarmEvent<
             ComposedSwarmEvent,
-            Either<void::Void, io::Error>,
+            either::Either<either::Either<Void, Void>, std::io::Error>,
         >,
     ) {
         match event {
@@ -106,11 +107,15 @@ impl EventLoop {
 
     async fn handle_behaviour_event(&mut self, behaviour_event: ComposedSwarmEvent) {
         match behaviour_event {
+            ComposedSwarmEvent::Ping(event) => {},
             ComposedSwarmEvent::Kademlia(event) => self.handle_kademlia_event(event).await,
             ComposedSwarmEvent::RequestResponse(event) => {
-                self.handle_request_response_event(event).await
+                self.handle_segment_rr_event(event).await
             }
         }
+    }
+
+    async fn handle_ping_event(&mut self, ping_event: ping::Event) {
     }
 
     async fn handle_kademlia_event(&mut self, kaemlia_event: KademliaEvent) {
@@ -184,7 +189,7 @@ impl EventLoop {
             }
         }
     }
-    async fn handle_request_response_event(
+    async fn handle_segment_rr_event(
         &mut self,
         request_response_event: RequestResponseEvent<SegmentRequest, SegmentResponse>,
     ) {
@@ -296,7 +301,7 @@ impl EventLoop {
                 let request_id = self
                     .swarm
                     .behaviour_mut()
-                    .request_response
+                    .segment_rr
                     .send_request(&peer, SegmentRequest(file_name));
                 self.pending_request_file.insert(request_id, sender);
             }
@@ -306,7 +311,7 @@ impl EventLoop {
             } => {
                 self.swarm
                     .behaviour_mut()
-                    .request_response
+                    .segment_rr
                     .send_response(channel, SegmentResponse(file))
                     .expect("Connection to peer to be still open.");
             }
