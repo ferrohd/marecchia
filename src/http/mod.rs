@@ -1,1 +1,1 @@
-mod downloader;
+pub mod downloader;

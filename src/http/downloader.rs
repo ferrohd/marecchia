@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
+#[derive(Debug)]
 pub enum DownloadError {
     // The Network is unreachable
     NetworkError,
@@ -11,7 +12,7 @@ pub enum DownloadError {
     DataError,
 }
 
-async fn download_segment(url: String) -> Result<Vec<u8>, DownloadError> {
+pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
     let mut opts = RequestInit::new();
     opts.method("GET");
     opts.mode(RequestMode::Cors);
