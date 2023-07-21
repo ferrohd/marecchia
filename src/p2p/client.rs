@@ -17,13 +17,13 @@ use libp2p::{
 
 use super::{
     behaviour::ComposedSwarmBehaviour,
-    event_loop::{Command, Event, EventLoop},
+    event_loop::{EventLoop, LoopCommand, LoopEvent},
     segment_protocol::{self, SegmentResponse},
 };
 
 pub async fn new(
     secret_key_seed: Option<u8>,
-) -> Result<(Client, impl Stream<Item = Event>, EventLoop), Box<dyn Error>> {
+) -> Result<(Client, impl Stream<Item = LoopEvent>, EventLoop), Box<dyn Error>> {
     // Create a public/private key pair, either random or based on a seed.
     let keypair = match secret_key_seed {
         Some(seed) => {
@@ -52,7 +52,14 @@ pub async fn new(
         let autonat_config = autonat::Config::default();
         let autonat = autonat::Behaviour::new(peer_id, autonat_config);
 
-        let kademlia_config = kad::KademliaConfig::default();
+        let kademlia_config = kad::KademliaConfig::default()
+            .set_connection_idle_timeout(Duration::from_secs(60))
+            .set_provider_publication_interval(Some(Duration::from_secs(30)))
+            .set_provider_record_ttl(None)
+            .set_publication_interval(Some(Duration::from_secs(30)))
+            .set_record_ttl(Some(Duration::from_secs(60)))
+            .set_replication_interval(Some(Duration::from_secs(5)))
+            .to_owned();
         let kademlia_store = kad::store::MemoryStore::new(peer_id);
         let kademlia = kad::Kademlia::with_config(peer_id, kademlia_store, kademlia_config);
 
@@ -74,7 +81,7 @@ pub async fn new(
         // Do wthings with behaviours
 
         swarm::SwarmBuilder::with_wasm_executor(transport, behaviour, peer_id)
-            .max_negotiating_inbound_streams(10)
+            .max_negotiating_inbound_streams(128)
             .build()
     };
 
@@ -92,7 +99,7 @@ pub async fn new(
 
 #[derive(Clone)]
 pub struct Client {
-    sender: mpsc::Sender<Command>,
+    sender: mpsc::Sender<LoopCommand>,
 }
 
 impl Client {
@@ -100,7 +107,7 @@ impl Client {
     pub async fn start_listening(&mut self, addr: Multiaddr) -> Result<(), Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
         self.sender
-            .send(Command::StartListening { addr, sender })
+            .send(LoopCommand::StartListening { addr, sender })
             .await
             .expect("Command receiver not to be dropped.");
         receiver.await.expect("Sender not to be dropped.")
@@ -114,7 +121,7 @@ impl Client {
     ) -> Result<(), Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
         self.sender
-            .send(Command::Dial {
+            .send(LoopCommand::Dial {
                 peer_id,
                 peer_addr,
                 sender,
@@ -128,7 +135,7 @@ impl Client {
     pub async fn start_providing(&mut self, segment_id: String) {
         let (sender, receiver) = oneshot::channel();
         self.sender
-            .send(Command::StartProviding { segment_id, sender })
+            .send(LoopCommand::StartProviding { segment_id, sender })
             .await
             .expect("Command receiver not to be dropped.");
         receiver.await.expect("Sender not to be dropped.");
@@ -138,7 +145,7 @@ impl Client {
     pub async fn get_providers(&mut self, segment_id: String) -> HashSet<PeerId> {
         let (sender, receiver) = oneshot::channel();
         self.sender
-            .send(Command::GetProviders { segment_id, sender })
+            .send(LoopCommand::GetProviders { segment_id, sender })
             .await
             .expect("Command receiver not to be dropped.");
         receiver.await.expect("Sender not to be dropped.")
@@ -149,10 +156,10 @@ impl Client {
         &mut self,
         peer: PeerId,
         segment_id: String,
-    ) -> Result<Vec<u8>, Box<dyn Error + Send>> {
+    ) -> Result<Option<Vec<u8>>, Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
         self.sender
-            .send(Command::RequestSegment {
+            .send(LoopCommand::RequestSegment {
                 segment_id,
                 peer,
                 sender,
@@ -165,11 +172,11 @@ impl Client {
     /// Respond with the provided file content to the given request.
     pub async fn respond_segment(
         &mut self,
-        file: Vec<u8>,
+        file: Option<Vec<u8>>,
         channel: ResponseChannel<SegmentResponse>,
     ) {
         self.sender
-            .send(Command::RespondSegment {
+            .send(LoopCommand::RespondSegment {
                 segment_data: file,
                 channel,
             })

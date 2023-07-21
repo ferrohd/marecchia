@@ -1,38 +1,40 @@
 use async_std::io;
 use either::Either;
-use libp2p::{PeerId, ping};
 use libp2p::core::Multiaddr;
 use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
 };
-use libp2p::kad::{GetProvidersOk, KademliaEvent, QueryId, QueryResult, GetProvidersError};
+use libp2p::kad::{
+    GetProvidersError, GetProvidersOk, KademliaEvent, QueryId, QueryResult, RecordKey,
+};
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
 use libp2p::swarm::{Swarm, SwarmEvent};
-use void::Void;
+use libp2p::{ping, PeerId};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
+use void::Void;
 
 use super::behaviour::*;
 use super::segment_protocol::*;
 
 pub struct EventLoop {
     swarm: Swarm<ComposedSwarmBehaviour>,
-    command_receiver: mpsc::Receiver<Command>,
-    event_sender: mpsc::Sender<Event>,
+    command_receiver: mpsc::Receiver<LoopCommand>,
+    event_sender: mpsc::Sender<LoopEvent>,
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), Box<dyn Error + Send>>>>,
     pending_start_providing: HashMap<QueryId, oneshot::Sender<()>>,
     pending_get_providers: HashMap<QueryId, oneshot::Sender<HashSet<PeerId>>>,
     pending_request_file:
-        HashMap<RequestId, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
+        HashMap<RequestId, oneshot::Sender<Result<Option<Vec<u8>>, Box<dyn Error + Send>>>>,
 }
 
 impl EventLoop {
     pub fn new(
         swarm: Swarm<ComposedSwarmBehaviour>,
-        command_receiver: mpsc::Receiver<Command>,
-        event_sender: mpsc::Sender<Event>,
+        command_receiver: mpsc::Receiver<LoopCommand>,
+        event_sender: mpsc::Sender<LoopEvent>,
     ) -> Self {
         Self {
             swarm,
@@ -94,7 +96,14 @@ impl EventLoop {
                 }
             }
             SwarmEvent::IncomingConnectionError { .. } => {}
-            SwarmEvent::Dialing {peer_id, connection_id} => println!("Dialing user with conn_id {:?} and peer_id {:?}", connection_id, peer_id.unwrap()),
+            SwarmEvent::Dialing {
+                peer_id,
+                connection_id,
+            } => println!(
+                "Dialing user with conn_id {:?} and peer_id {:?}",
+                connection_id,
+                peer_id.unwrap()
+            ),
             SwarmEvent::ExpiredListenAddr { .. } => {}
             SwarmEvent::ListenerClosed {
                 listener_id,
@@ -107,16 +116,13 @@ impl EventLoop {
 
     async fn handle_behaviour_event(&mut self, behaviour_event: ComposedSwarmEvent) {
         match behaviour_event {
-            ComposedSwarmEvent::Ping(event) => {},
+            ComposedSwarmEvent::Ping(event) => self.handle_ping_event(event).await,
             ComposedSwarmEvent::Kademlia(event) => self.handle_kademlia_event(event).await,
-            ComposedSwarmEvent::RequestResponse(event) => {
-                self.handle_segment_rr_event(event).await
-            }
+            ComposedSwarmEvent::RequestResponse(event) => self.handle_segment_rr_event(event).await,
         }
     }
 
-    async fn handle_ping_event(&mut self, ping_event: ping::Event) {
-    }
+    async fn handle_ping_event(&mut self, ping_event: ping::Event) {}
 
     async fn handle_kademlia_event(&mut self, kaemlia_event: KademliaEvent) {
         match kaemlia_event {
@@ -164,7 +170,7 @@ impl EventLoop {
                                         closest_peers,
                                     } => {
                                         // No providers of the segment found.
-                                        // ! Start downloading from the CDN. 
+                                        // ! Start downloading from the CDN.
                                         // ? Should we try to find providers of the next segment?
                                     }
                                 }
@@ -172,14 +178,14 @@ impl EventLoop {
                             Err(providers_err) => match providers_err {
                                 GetProvidersError::Timeout { key, closest_peers } => {
                                     // The query of the segment timed out.
-                                    // ? Should we use the timeout to force a threshold within the segment must be found? 
+                                    // ? Should we use the timeout to force a threshold within the segment must be found?
                                     // ! Start downloading from the CDN.
                                 }
-                            }
+                            },
                         }
                     }
                     // The Kademlia DHT is used to find owners of a segment.
-                    // The segment is not stored in the DHT. The value of a key is never accessed. 
+                    // The segment is not stored in the DHT. The value of a key is never accessed.
                     QueryResult::Bootstrap(result) => {}
                     QueryResult::GetRecord(result) => {}
                     QueryResult::PutRecord(result) => {}
@@ -200,8 +206,8 @@ impl EventLoop {
                 } => {
                     // Received a segment request, emit it.
                     self.event_sender
-                        .send(Event::InboundRequest {
-                            request: request.0,
+                        .send(LoopEvent::SegmentRequest {
+                            segment_id: request.0,
                             channel,
                         })
                         .await
@@ -216,7 +222,7 @@ impl EventLoop {
                         .pending_request_file
                         .remove(&request_id)
                         .expect("Request to still be pending.")
-                        .send(Ok(response.0));
+                        .send(Ok(response));
                 }
             },
             RequestResponseEvent::OutboundFailure {
@@ -238,15 +244,15 @@ impl EventLoop {
         }
     }
 
-    async fn handle_command(&mut self, command: Command) {
+    async fn handle_command(&mut self, command: LoopCommand) {
         match command {
-            Command::StartListening { addr, sender } => {
+            LoopCommand::StartListening { addr, sender } => {
                 let _ = match self.swarm.listen_on(addr) {
                     Ok(_) => sender.send(Ok(())),
                     Err(e) => sender.send(Err(Box::new(e))),
                 };
             }
-            Command::Dial {
+            LoopCommand::Dial {
                 peer_id,
                 peer_addr,
                 sender,
@@ -270,30 +276,29 @@ impl EventLoop {
                     }
                 }
             }
-            Command::StartProviding {
-                segment_id: file_name,
-                sender,
-            } => {
+            LoopCommand::StartProviding { segment_id, sender } => {
                 let query_id = self
                     .swarm
                     .behaviour_mut()
                     .kademlia
-                    .start_providing(file_name.into_bytes().into())
+                    .start_providing(segment_id.into_bytes().into())
                     .expect("No store error.");
                 self.pending_start_providing.insert(query_id, sender);
             }
-            Command::GetProviders {
-                segment_id: file_name,
-                sender,
-            } => {
+            LoopCommand::StopProviding { segment_id, sender } => {
+                let key: RecordKey = segment_id.into_bytes().into();
+                self.swarm.behaviour_mut().kademlia.stop_providing(&key);
+                let _ = sender.send(());
+            }
+            LoopCommand::GetProviders { segment_id, sender } => {
                 let query_id = self
                     .swarm
                     .behaviour_mut()
                     .kademlia
-                    .get_providers(file_name.into_bytes().into());
+                    .get_providers(segment_id.into_bytes().into());
                 self.pending_get_providers.insert(query_id, sender);
             }
-            Command::RequestSegment {
+            LoopCommand::RequestSegment {
                 segment_id: file_name,
                 peer,
                 sender,
@@ -305,14 +310,14 @@ impl EventLoop {
                     .send_request(&peer, SegmentRequest(file_name));
                 self.pending_request_file.insert(request_id, sender);
             }
-            Command::RespondSegment {
-                segment_data: file,
+            LoopCommand::RespondSegment {
+                segment_data,
                 channel,
             } => {
                 self.swarm
                     .behaviour_mut()
                     .segment_rr
-                    .send_response(channel, SegmentResponse(file))
+                    .send_response(channel, segment_data)
                     .expect("Connection to peer to be still open.");
             }
         }
@@ -320,7 +325,7 @@ impl EventLoop {
 }
 
 #[derive(Debug)]
-pub enum Command {
+pub enum LoopCommand {
     StartListening {
         addr: Multiaddr,
         sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
@@ -334,6 +339,10 @@ pub enum Command {
         segment_id: String,
         sender: oneshot::Sender<()>,
     },
+    StopProviding {
+        segment_id: String,
+        sender: oneshot::Sender<()>,
+    },
     GetProviders {
         segment_id: String,
         sender: oneshot::Sender<HashSet<PeerId>>,
@@ -341,18 +350,18 @@ pub enum Command {
     RequestSegment {
         segment_id: String,
         peer: PeerId,
-        sender: oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>,
+        sender: oneshot::Sender<Result<Option<Vec<u8>>, Box<dyn Error + Send>>>,
     },
     RespondSegment {
-        segment_data: Vec<u8>,
+        segment_data: Option<Vec<u8>>,
         channel: ResponseChannel<SegmentResponse>,
     },
 }
 
 #[derive(Debug)]
-pub enum Event {
-    InboundRequest {
-        request: String,
+pub enum LoopEvent {
+    SegmentRequest {
+        segment_id: String,
         channel: ResponseChannel<SegmentResponse>,
     },
 }

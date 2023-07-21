@@ -12,8 +12,9 @@ pub struct SegmentExchangeProtocol();
 pub struct SegmentExchangeCodec();
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SegmentRequest(pub String);
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SegmentResponse(pub Vec<u8>);
+
+
+pub type SegmentResponse = Option<Vec<u8>>;
 
 impl AsRef<str> for SegmentExchangeProtocol {
     fn as_ref(&self) -> &str {
@@ -60,11 +61,10 @@ impl request_response::Codec for SegmentExchangeCodec {
     {
         let vec = read_length_prefixed(io, 500_000_000).await?; // update transfer maximum
 
-        if vec.is_empty() {
-            return Err(io::ErrorKind::UnexpectedEof.into());
+        return match vec.len() {
+            0 => Ok(None),
+            _ => Ok(Some(vec))
         }
-
-        Ok(SegmentResponse(vec))
     }
 
     async fn write_request<T>(
@@ -86,11 +86,17 @@ impl request_response::Codec for SegmentExchangeCodec {
         &mut self,
         _: &SegmentExchangeProtocol,
         io: &mut T,
-        SegmentResponse(data): SegmentResponse,
+        data: SegmentResponse,
     ) -> io::Result<()>
     where
         T: AsyncWrite + Unpin + Send,
     {
+
+        let data = match data {
+            Some(data) => data,
+            None => Vec::new()
+        };
+
         write_length_prefixed(io, data).await?;
         io.close().await?;
 
