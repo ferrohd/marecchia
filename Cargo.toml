@@ -18,7 +18,7 @@ libp2p = {version = "^0.52", features = ["full"]}
 # Remove when Rust supports async traits
 async-trait = "^0.1"
 # I don't like it
-either = "^1.8"
+either = "^1.9.0"
 async-std = "^1.12"
 lru = "0.11.0"
 void = "^1.0"
