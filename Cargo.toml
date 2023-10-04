@@ -20,7 +20,7 @@ async-trait = "^0.1"
 # I don't like it
 either = "^1.9.0"
 async-std = "^1.12"
-lru = "0.11.0"
+lru = "0.12.0"
 void = "^1.0"
 
 [dependencies.web-sys]
