@@ -1,4 +1,4 @@
-use async_std::io;
+use std::io;
 use async_trait::async_trait;
 use libp2p::futures::prelude::*;
 use libp2p::{
