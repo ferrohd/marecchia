@@ -1,5 +1,5 @@
 use libp2p::{
-    kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
+    kad::{record::store::MemoryStore, Behaviour, self},
     ping, request_response,
     swarm::NetworkBehaviour,
 };
@@ -11,14 +11,14 @@ use super::protocol::segment_protocol::{SegmentExchangeCodec, SegmentRequest, Se
 pub struct ComposedSwarmBehaviour {
     pub ping: ping::Behaviour,
     pub segment_rr: request_response::Behaviour<SegmentExchangeCodec>,
-    pub kademlia: Kademlia<MemoryStore>,
+    pub kademlia: Behaviour<MemoryStore>,
 }
 
 #[derive(Debug)]
 pub enum ComposedSwarmEvent {
     Ping(ping::Event),
     RequestResponse(request_response::Event<SegmentRequest, SegmentResponse>),
-    Kademlia(KademliaEvent),
+    Kademlia(kad::Event),
 }
 
 impl From<ping::Event> for ComposedSwarmEvent {
@@ -33,8 +33,8 @@ impl From<request_response::Event<SegmentRequest, SegmentResponse>> for Composed
     }
 }
 
-impl From<KademliaEvent> for ComposedSwarmEvent {
-    fn from(event: KademliaEvent) -> Self {
+impl From<kad::Event> for ComposedSwarmEvent {
+    fn from(event: kad::Event) -> Self {
         ComposedSwarmEvent::Kademlia(event)
     }
 }

@@ -2,7 +2,6 @@ use async_std::stream::Stream;
 use std::{collections::HashSet, error::Error, time::Duration};
 use wasm_bindgen::prelude::*;
 //use libp2p::webrtc_websys;
-use libp2p_webrtc_websys as webrtc_websys;
 use libp2p::{
     autonat,
     core::{
@@ -19,8 +18,9 @@ use libp2p::{
     multiaddr::Multiaddr,
     noise, ping,
     request_response::{self, ProtocolSupport, ResponseChannel},
-    swarm,
+    swarm, SwarmBuilder,
 };
+use libp2p_webrtc_websys as webrtc_websys;
 
 use super::{
     behaviour::ComposedSwarmBehaviour,
@@ -31,7 +31,6 @@ use super::{
 pub async fn new(
     secret_key_seed: Option<u8>,
 ) -> Result<(Client, impl Stream<Item = LoopEvent>), Box<dyn Error>> {
-    log::info!("Starting up...");
     // Create a public/private key pair, either random or based on a seed.
     let keypair = match secret_key_seed {
         Some(seed) => {
@@ -57,8 +56,8 @@ pub async fn new(
         let autonat_config = autonat::Config::default();
         let autonat = autonat::Behaviour::new(peer_id, autonat_config);
 
-        let kademlia_config = kad::KademliaConfig::default()
-            .set_connection_idle_timeout(Duration::from_secs(60))
+        let kademlia_config = kad::Config::default()
+            //.set_connection_idle_timeout(Duration::from_secs(60))
             .set_provider_publication_interval(Some(Duration::from_secs(30)))
             .set_provider_record_ttl(None)
             .set_publication_interval(Some(Duration::from_secs(30)))
@@ -66,7 +65,7 @@ pub async fn new(
             .set_replication_interval(Some(Duration::from_secs(5)))
             .to_owned();
         let kademlia_store = kad::store::MemoryStore::new(peer_id);
-        let kademlia = kad::Kademlia::with_config(peer_id, kademlia_store, kademlia_config);
+        let kademlia = kad::Behaviour::with_config(peer_id, kademlia_store, kademlia_config);
 
         // Not needed, SegmentExchangeProtocol implements Codec and Default, gets instantiated in request_response::Behaviour::new
         //let rr_codec = segment_protocol::SegmentExchangeCodec();
@@ -83,14 +82,19 @@ pub async fn new(
             segment_rr: request_response,
         };
 
-        swarm::SwarmBuilder::with_existing_identity(keypair)
+        let swarm_config = swarm::Config::with_wasm_executor()
+            .with_max_negotiating_inbound_streams(32)
+            .with_dial_concurrency_factor(5.try_into().unwrap());
+
+        SwarmBuilder::with_existing_identity(keypair)
             .with_wasm_bindgen()
             .with_other_transport(|key| {
                 webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
             })?
-            .with_behaviour(behaviour)?
-            .max_negotiating_inbound_streams(32)
-            .build()
+            .with_behaviour(|c| behaviour)?
+            .with_swarm_config(swarm_config)
+
+        //.max_negotiating_inbound_streams(32)
     };
 
     let (command_sender, command_receiver) = mpsc::channel(20);

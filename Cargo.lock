@@ -2276,9 +2276,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-webrtc-websys"
-version = "0.1.0-alpha"
+version = "0.2.0-alpha"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "993ae38e370f3fde71f9eefaa21e92d8feaa8fe1a86d7ab28faadfb0d4f824f0"
+checksum = "022bfea52efae3f7a88a8f57fb263d0413b5b9636267c55df66af6dbc05b0078"
 dependencies = [
  "bytes",
  "futures",

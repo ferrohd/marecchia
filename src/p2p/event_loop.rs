@@ -6,7 +6,7 @@ use libp2p::futures::{
     prelude::*,
 };
 use libp2p::kad::{
-    GetProvidersError, GetProvidersOk, KademliaEvent, QueryId, QueryResult, RecordKey,
+    self, GetProvidersError, GetProvidersOk, QueryId, QueryResult, RecordKey,
 };
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
@@ -123,14 +123,14 @@ impl EventLoop {
 
     async fn handle_ping_event(&mut self, ping_event: ping::Event) {}
 
-    async fn handle_kademlia_event(&mut self, kaemlia_event: KademliaEvent) {
+    async fn handle_kademlia_event(&mut self, kaemlia_event: kad::Event) {
         match kaemlia_event {
-            KademliaEvent::RoutingUpdated { peer, .. } => {}
-            KademliaEvent::UnroutablePeer { peer } => {}
-            KademliaEvent::PendingRoutablePeer { peer, address } => {}
-            KademliaEvent::RoutablePeer { peer, address } => {}
-            KademliaEvent::InboundRequest { request } => {}
-            KademliaEvent::OutboundQueryProgressed {
+            kad::Event::RoutingUpdated { peer, .. } => {}
+            kad::Event::UnroutablePeer { peer } => {}
+            kad::Event::PendingRoutablePeer { peer, address } => {}
+            kad::Event::RoutablePeer { peer, address } => {}
+            kad::Event::InboundRequest { request } => {}
+            kad::Event::OutboundQueryProgressed {
                 id,
                 result,
                 stats,

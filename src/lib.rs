@@ -17,8 +17,6 @@ mod storage;
 pub async fn start() -> Result<(), JsValue> {
     wasm_logger::init(wasm_logger::Config::default());
 
-    log::info!("Starting up...");
-
     let mut local_storage = MemoryStorage::new();
 
     let (mut client, mut event_stream) = client::new(None).await.unwrap();
