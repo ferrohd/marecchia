@@ -3872,6 +3872,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "either",
+ "futures",
  "js-sys",
  "libp2p",
  "libp2p-webrtc-websys",

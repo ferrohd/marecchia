@@ -1,29 +1,37 @@
-use std::{collections::HashSet, error::Error, io, iter, time::Duration};
-
 use async_std::stream::Stream;
+use std::{collections::HashSet, error::Error, time::Duration};
+use wasm_bindgen::prelude::*;
+//use libp2p::webrtc_websys;
+use libp2p_webrtc_websys as webrtc_websys;
 use libp2p::{
     autonat,
-    core::{self, muxing::StreamMuxerBox, transport::Boxed},
-    dns,
+    core::{
+        self,
+        transport::{Boxed, Transport as TransportTrait},
+        upgrade::Version,
+    },
     futures::{
         channel::{mpsc, oneshot},
         SinkExt,
     },
-    identity::{self, Keypair},
-    kad, noise, ping,
+    identity::{self, Keypair, PeerId},
+    kad,
+    multiaddr::Multiaddr,
+    noise, ping,
     request_response::{self, ProtocolSupport, ResponseChannel},
-    swarm, tcp, yamux, Multiaddr, PeerId, Transport,
+    swarm,
 };
 
 use super::{
     behaviour::ComposedSwarmBehaviour,
     event_loop::{EventLoop, LoopCommand, LoopEvent},
-    segment_protocol::{self, SegmentResponse},
+    protocol::segment_protocol::{self, SegmentResponse},
 };
 
 pub async fn new(
     secret_key_seed: Option<u8>,
-) -> Result<(Client, impl Stream<Item = LoopEvent>, EventLoop), Box<dyn Error>> {
+) -> Result<(Client, impl Stream<Item = LoopEvent>), Box<dyn Error>> {
+    log::info!("Starting up...");
     // Create a public/private key pair, either random or based on a seed.
     let keypair = match secret_key_seed {
         Some(seed) => {
@@ -37,15 +45,12 @@ pub async fn new(
     };
     let peer_id = keypair.public().to_peer_id();
 
-    let transport = create_transport(&keypair)
-        .await
-        .expect("Cannot create transport");
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
     let swarm = {
         // Define the various behaviours of the swarm.
         let ping_config = ping::Config::new()
-            .with_timeout(Duration::from_secs(5))
+            .with_timeout(Duration::from_secs(10))
             .with_interval(Duration::from_secs(5));
         let ping = ping::Behaviour::new(ping_config);
 
@@ -78,35 +83,38 @@ pub async fn new(
             segment_rr: request_response,
         };
 
-        // Do wthings with behaviours
-
-        swarm::SwarmBuilder::with_wasm_executor(transport, behaviour, peer_id)
-            .max_negotiating_inbound_streams(128)
+        swarm::SwarmBuilder::with_existing_identity(keypair)
+            .with_wasm_bindgen()
+            .with_other_transport(|key| {
+                webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
+            })?
+            .with_behaviour(behaviour)?
+            .max_negotiating_inbound_streams(32)
             .build()
     };
 
-    let (command_sender, command_receiver) = mpsc::channel(0);
-    let (event_sender, event_receiver) = mpsc::channel(0);
+    let (command_sender, command_receiver) = mpsc::channel(20);
+    let (event_sender, event_receiver) = mpsc::channel(20);
 
-    Ok((
-        Client {
-            sender: command_sender,
-        },
-        event_receiver,
-        EventLoop::new(swarm, command_receiver, event_sender),
-    ))
+    wasm_bindgen_futures::spawn_local(async move {
+        EventLoop::new(swarm, command_receiver, event_sender)
+            .run()
+            .await;
+    });
+
+    Ok((Client(command_sender), event_receiver))
 }
 
 #[derive(Clone)]
-pub struct Client {
-    sender: mpsc::Sender<LoopCommand>,
-}
+pub struct Client(mpsc::Sender<LoopCommand>);
 
 impl Client {
     /// Listen for incoming connections on the given address.
-    pub async fn start_listening(&mut self, addr: Multiaddr) -> Result<(), Box<dyn Error + Send>> {
+    pub async fn start_listening(&mut self) -> Result<(), Box<dyn Error + Send>> {
+        let addr = "/ip4/0.0.0.0".parse::<Multiaddr>().unwrap();
+
         let (sender, receiver) = oneshot::channel();
-        self.sender
+        self.0
             .send(LoopCommand::StartListening { addr, sender })
             .await
             .expect("Command receiver not to be dropped.");
@@ -120,7 +128,7 @@ impl Client {
         peer_addr: Multiaddr,
     ) -> Result<(), Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
-        self.sender
+        self.0
             .send(LoopCommand::Dial {
                 peer_id,
                 peer_addr,
@@ -134,7 +142,7 @@ impl Client {
     /// Advertise the local node as the provider of the given file on the DHT.
     pub async fn start_providing(&mut self, segment_id: String) {
         let (sender, receiver) = oneshot::channel();
-        self.sender
+        self.0
             .send(LoopCommand::StartProviding { segment_id, sender })
             .await
             .expect("Command receiver not to be dropped.");
@@ -144,7 +152,7 @@ impl Client {
     /// Find the providers for the given file on the DHT.
     pub async fn get_providers(&mut self, segment_id: String) -> HashSet<PeerId> {
         let (sender, receiver) = oneshot::channel();
-        self.sender
+        self.0
             .send(LoopCommand::GetProviders { segment_id, sender })
             .await
             .expect("Command receiver not to be dropped.");
@@ -158,7 +166,7 @@ impl Client {
         segment_id: String,
     ) -> Result<Option<Vec<u8>>, Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
-        self.sender
+        self.0
             .send(LoopCommand::RequestSegment {
                 segment_id,
                 peer,
@@ -166,7 +174,7 @@ impl Client {
             })
             .await
             .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not be dropped.")
+        receiver.await.expect("Sender not to be dropped.")
     }
 
     /// Respond with the provided file content to the given request.
@@ -175,7 +183,7 @@ impl Client {
         file: Option<Vec<u8>>,
         channel: ResponseChannel<SegmentResponse>,
     ) {
-        self.sender
+        self.0
             .send(LoopCommand::RespondSegment {
                 segment_data: file,
                 channel,
@@ -183,16 +191,4 @@ impl Client {
             .await
             .expect("Command receiver not to be dropped.");
     }
-}
-
-async fn create_transport(keypair: &Keypair) -> Result<Boxed<(PeerId, StreamMuxerBox)>, io::Error> {
-    let dns_tcp =
-        dns::DnsConfig::system(tcp::tokio::Transport::new(tcp::Config::new().nodelay(true)))
-            .await?
-            .upgrade(core::upgrade::Version::V1)
-            .authenticate(noise::Config::new(&keypair).unwrap())
-            .multiplex(yamux::Config::default())
-            .timeout(Duration::from_secs(20))
-            .boxed();
-    Ok(dns_tcp)
 }
