@@ -21,11 +21,11 @@ pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
         Request::new_with_str_and_init(&url, &opts).map_err(|_| DownloadError::NetworkError)?;
 
     let window = web_sys::window().unwrap();
-    let resp_value = JsFuture::from(window.fetch_with_request(&request))
+    let resp = JsFuture::from(window.fetch_with_request(&request))
         .await
-        .map_err(|_| DownloadError::NetworkError)?;
-
-    let resp: Response = resp_value.unchecked_into::<Response>();
+        .map_err(|_| DownloadError::NetworkError)?
+        .dyn_into::<Response>()
+        .map_err(|_| DownloadError::DataError)?;
 
     if resp.status() != 200 {
         return Err(DownloadError::HttpError(resp.status()));
@@ -40,6 +40,6 @@ pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
         //.unchecked_into::<ArrayBuffer>();
 
     let data = js_sys::Uint8Array::new(&data).to_vec();
-    
+
     Ok(data)
 }

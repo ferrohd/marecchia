@@ -1,5 +1,5 @@
-use async_std::io;
-use either::Either;
+use either;
+use void::Void;
 use libp2p::core::Multiaddr;
 use libp2p::futures::{
     channel::{mpsc, oneshot},
@@ -14,10 +14,9 @@ use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{ping, PeerId};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
-use void::Void;
 
 use super::behaviour::*;
-use super::segment_protocol::*;
+use super::protocol::segment_protocol::*;
 
 pub struct EventLoop {
     swarm: Swarm<ComposedSwarmBehaviour>,
@@ -239,7 +238,9 @@ impl EventLoop {
                 peer,
                 request_id,
                 error,
-            } => {}
+            } => {
+                // ! Download from CDN
+            }
             RequestResponseEvent::ResponseSent { .. } => {}
         }
     }
