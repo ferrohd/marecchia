@@ -1,5 +1,4 @@
-use async_std::stream::StreamExt;
-use futures::future::select_ok;
+use futures::{StreamExt, future::select_ok};
 use libp2p::Multiaddr;
 use p2p::client;
 use storage::memory_storage::MemoryStorage;
@@ -34,7 +33,7 @@ pub async fn start() -> Result<(), JsValue> {
         None => {
             let providers = client.get_providers(segment_id.to_string()).await;
             if providers.is_empty() {
-                http::downloader::download_segment(segment_id).await.ok()
+                http::downloader::download_segment(segment_id).await.ok();
             }
 
             let segment_request = providers

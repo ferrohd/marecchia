@@ -35,8 +35,8 @@ async fn get_playlist(url: &str) -> Result<m3u8_rs::MasterPlaylist, DownloadErro
         .as_string()
         .ok_or(DownloadError::DataError)?;
 
-
-    let playlist = m3u8_rs::parse_master_playlist_res(data.as_bytes()).map_err(|_| DownloadError::DataError)?;
+    let playlist = m3u8_rs::parse_master_playlist_res(data.as_bytes())
+        .map_err(|_| DownloadError::DataError)?;
 
     Ok(playlist)
 }

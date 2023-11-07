@@ -10,6 +10,8 @@ pub enum DownloadError {
     HttpError(u16),
     // Cannot parse the response as bytes
     DataError,
+    // Window variable is not defined
+    WindowError,
 }
 
 pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
@@ -20,7 +22,7 @@ pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
     let request =
         Request::new_with_str_and_init(&url, &opts).map_err(|_| DownloadError::NetworkError)?;
 
-    let window = web_sys::window().unwrap();
+    let window = web_sys::window().ok_or(DownloadError::WindowError)?;
     let resp = JsFuture::from(window.fetch_with_request(&request))
         .await
         .map_err(|_| DownloadError::NetworkError)?
@@ -37,7 +39,7 @@ pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
         .map_err(|_| DownloadError::DataError)?
         .await
         .map_err(|_| DownloadError::DataError)?;
-        //.unchecked_into::<ArrayBuffer>();
+    //.unchecked_into::<ArrayBuffer>();
 
     let data = js_sys::Uint8Array::new(&data).to_vec();
 

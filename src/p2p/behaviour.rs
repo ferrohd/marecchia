@@ -1,17 +1,57 @@
-use libp2p::{
-    kad::{record::store::MemoryStore, Behaviour, self},
-    ping, request_response,
-    swarm::NetworkBehaviour,
-};
+use std::time::Duration;
 
-use super::protocol::segment_protocol::{SegmentExchangeCodec, SegmentRequest, SegmentResponse};
+use libp2p::{
+    autonat,
+    kad::{self, store::MemoryStore, Behaviour},
+    ping,
+    request_response::{self, ProtocolSupport},
+    swarm::NetworkBehaviour,
+    PeerId, StreamProtocol,
+};
+use serde::{Serialize, Deserialize};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "ComposedSwarmEvent")]
 pub struct ComposedSwarmBehaviour {
     pub ping: ping::Behaviour,
-    pub segment_rr: request_response::Behaviour<SegmentExchangeCodec>,
+    pub segment_rr: request_response::cbor::Behaviour<SegmentRequest, SegmentResponse>,
     pub kademlia: Behaviour<MemoryStore>,
+}
+
+impl ComposedSwarmBehaviour {
+    pub fn default(peer_id: PeerId) -> Self {
+        // Define the various behaviours of the swarm.
+        let ping_config = ping::Config::new()
+            .with_timeout(Duration::from_secs(10))
+            .with_interval(Duration::from_secs(5));
+        let ping = ping::Behaviour::new(ping_config);
+
+        let autonat_config = autonat::Config::default();
+        let autonat = autonat::Behaviour::new(peer_id, autonat_config);
+
+        let kademlia_config = kad::Config::default()
+            //.set_connection_idle_timeout(Duration::from_secs(60))
+            .set_provider_publication_interval(Some(Duration::from_secs(30)))
+            .set_provider_record_ttl(None)
+            .set_publication_interval(Some(Duration::from_secs(30)))
+            .set_record_ttl(Some(Duration::from_secs(60)))
+            .set_replication_interval(Some(Duration::from_secs(5)))
+            .to_owned();
+        let kademlia_store = kad::store::MemoryStore::new(peer_id);
+        let kademlia = kad::Behaviour::with_config(peer_id, kademlia_store, kademlia_config);
+
+        let request_response = request_response::Behaviour::new(
+            [(StreamProtocol::new("/segment/1"), ProtocolSupport::Full)],
+            request_response::Config::default(),
+        );
+
+        Self {
+            ping,
+            //autonat,
+            kademlia,
+            segment_rr: request_response,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -38,3 +78,11 @@ impl From<kad::Event> for ComposedSwarmEvent {
         ComposedSwarmEvent::Kademlia(event)
     }
 }
+
+// Request segment id
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SegmentRequest(pub String);
+
+// Response segment data
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SegmentResponse(pub Option<Vec<u8>>);

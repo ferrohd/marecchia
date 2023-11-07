@@ -1,22 +1,19 @@
-use either;
-use void::Void;
 use libp2p::core::Multiaddr;
 use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
 };
-use libp2p::kad::{
-    self, GetProvidersError, GetProvidersOk, QueryId, QueryResult, RecordKey,
-};
+use libp2p::kad::{self, GetProvidersError, GetProvidersOk, QueryId, QueryResult, RecordKey};
 use libp2p::multiaddr::Protocol;
-use libp2p::request_response::{self, Event as RequestResponseEvent, RequestId, ResponseChannel};
+use libp2p::request_response::{
+    self, Event as RequestResponseEvent, OutboundRequestId, ResponseChannel,
+};
 use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{ping, PeerId};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::error::Error;
 
 use super::behaviour::*;
-use super::protocol::segment_protocol::*;
 
 pub struct EventLoop {
     swarm: Swarm<ComposedSwarmBehaviour>,
@@ -26,7 +23,7 @@ pub struct EventLoop {
     pending_start_providing: HashMap<QueryId, oneshot::Sender<()>>,
     pending_get_providers: HashMap<QueryId, oneshot::Sender<HashSet<PeerId>>>,
     pending_request_file:
-        HashMap<RequestId, oneshot::Sender<Result<Option<Vec<u8>>, Box<dyn Error + Send>>>>,
+        HashMap<OutboundRequestId, oneshot::Sender<Result<Option<Vec<u8>>, Box<dyn Error + Send>>>>,
 }
 
 impl EventLoop {
@@ -59,13 +56,7 @@ impl EventLoop {
         }
     }
 
-    async fn handle_event(
-        &mut self,
-        event: SwarmEvent<
-            ComposedSwarmEvent,
-            either::Either<either::Either<Void, Void>, std::io::Error>,
-        >,
-    ) {
+    async fn handle_event(&mut self, event: SwarmEvent<ComposedSwarmEvent>) {
         match event {
             SwarmEvent::Behaviour(behaviour) => self.handle_behaviour_event(behaviour).await,
             SwarmEvent::NewListenAddr { address, .. } => {
@@ -110,6 +101,8 @@ impl EventLoop {
                 reason,
             } => {}
             SwarmEvent::ListenerError { listener_id, error } => {}
+            // TODO: handle the rest
+            _ => {}
         }
     }
 
@@ -125,6 +118,7 @@ impl EventLoop {
 
     async fn handle_kademlia_event(&mut self, kaemlia_event: kad::Event) {
         match kaemlia_event {
+            kad::Event::ModeChanged { new_mode } => {}
             kad::Event::RoutingUpdated { peer, .. } => {}
             kad::Event::UnroutablePeer { peer } => {}
             kad::Event::PendingRoutablePeer { peer, address } => {}
@@ -221,7 +215,7 @@ impl EventLoop {
                         .pending_request_file
                         .remove(&request_id)
                         .expect("Request to still be pending.")
-                        .send(Ok(response));
+                        .send(Ok(response.0));
                 }
             },
             RequestResponseEvent::OutboundFailure {
@@ -318,7 +312,7 @@ impl EventLoop {
                 self.swarm
                     .behaviour_mut()
                     .segment_rr
-                    .send_response(channel, segment_data)
+                    .send_response(channel, SegmentResponse(segment_data))
                     .expect("Connection to peer to be still open.");
             }
         }

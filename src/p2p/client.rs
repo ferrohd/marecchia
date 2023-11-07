@@ -1,31 +1,21 @@
-use async_std::stream::Stream;
-use std::{collections::HashSet, error::Error, time::Duration};
-use wasm_bindgen::prelude::*;
+use std::{collections::HashSet, error::Error};
+use futures::Stream;
 //use libp2p::webrtc_websys;
 use libp2p::{
-    autonat,
-    core::{
-        self,
-        transport::{Boxed, Transport as TransportTrait},
-        upgrade::Version,
-    },
     futures::{
         channel::{mpsc, oneshot},
         SinkExt,
     },
-    identity::{self, Keypair, PeerId},
-    kad,
+    identity::{self, PeerId},
     multiaddr::Multiaddr,
-    noise, ping,
-    request_response::{self, ProtocolSupport, ResponseChannel},
+    request_response::ResponseChannel,
     swarm, SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
 
 use super::{
-    behaviour::ComposedSwarmBehaviour,
-    event_loop::{EventLoop, LoopCommand, LoopEvent},
-    protocol::segment_protocol::{self, SegmentResponse},
+    behaviour::{ComposedSwarmBehaviour, SegmentResponse},
+    event_loop::{EventLoop, LoopCommand, LoopEvent}
 };
 
 pub async fn new(
@@ -47,40 +37,7 @@ pub async fn new(
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
     let swarm = {
-        // Define the various behaviours of the swarm.
-        let ping_config = ping::Config::new()
-            .with_timeout(Duration::from_secs(10))
-            .with_interval(Duration::from_secs(5));
-        let ping = ping::Behaviour::new(ping_config);
-
-        let autonat_config = autonat::Config::default();
-        let autonat = autonat::Behaviour::new(peer_id, autonat_config);
-
-        let kademlia_config = kad::Config::default()
-            //.set_connection_idle_timeout(Duration::from_secs(60))
-            .set_provider_publication_interval(Some(Duration::from_secs(30)))
-            .set_provider_record_ttl(None)
-            .set_publication_interval(Some(Duration::from_secs(30)))
-            .set_record_ttl(Some(Duration::from_secs(60)))
-            .set_replication_interval(Some(Duration::from_secs(5)))
-            .to_owned();
-        let kademlia_store = kad::store::MemoryStore::new(peer_id);
-        let kademlia = kad::Behaviour::with_config(peer_id, kademlia_store, kademlia_config);
-
-        // Not needed, SegmentExchangeProtocol implements Codec and Default, gets instantiated in request_response::Behaviour::new
-        //let rr_codec = segment_protocol::SegmentExchangeCodec();
-        let segment_protocol = segment_protocol::SegmentExchangeProtocol();
-        let request_response = request_response::Behaviour::new(
-            [(segment_protocol, ProtocolSupport::Full)],
-            request_response::Config::default(),
-        );
-
-        let behaviour = ComposedSwarmBehaviour {
-            ping,
-            //autonat,
-            kademlia,
-            segment_rr: request_response,
-        };
+        let behaviour = ComposedSwarmBehaviour::default(peer_id);
 
         let swarm_config = swarm::Config::with_wasm_executor()
             .with_max_negotiating_inbound_streams(32)
@@ -91,7 +48,7 @@ pub async fn new(
             .with_other_transport(|key| {
                 webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
             })?
-            .with_behaviour(|c| behaviour)?
+            .with_behaviour(|_| behaviour)?
             .with_swarm_config(swarm_config)
 
         //.max_negotiating_inbound_streams(32)
