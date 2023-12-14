@@ -1,5 +1,4 @@
 use futures::Stream;
-use std::{collections::HashSet, error::Error};
 use libp2p::{
     futures::{
         channel::{mpsc, oneshot},
@@ -8,9 +7,10 @@ use libp2p::{
     identity::{self, PeerId},
     multiaddr::Multiaddr,
     request_response::ResponseChannel,
-    swarm, SwarmBuilder,
+    SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
+use std::{collections::HashSet, error::Error, time::Duration};
 
 use super::{
     behaviour::{ComposedSwarmBehaviour, SegmentResponse},
@@ -31,26 +31,21 @@ pub async fn new(
         }
         None => identity::Keypair::generate_ed25519(),
     };
-    let peer_id = keypair.public().to_peer_id();
 
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
-    let swarm = {
-        let swarm_config = swarm::Config::with_wasm_executor()
-            .with_max_negotiating_inbound_streams(32)
-            .with_dial_concurrency_factor(5.try_into().unwrap());
-
-        SwarmBuilder::with_existing_identity(keypair)
-            .with_wasm_bindgen()
-            .with_other_transport(|key| {
-                webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
-            })?
-            .with_behaviour(|key| ComposedSwarmBehaviour::from(key))?
-            .build()
-
-
-        //.max_negotiating_inbound_streams(32)
-    };
+    let swarm = SwarmBuilder::with_existing_identity(keypair)
+        .with_wasm_bindgen()
+        .with_other_transport(|key| {
+            webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
+        })?
+        .with_behaviour(|key| ComposedSwarmBehaviour::from(key))?
+        .with_swarm_config(|c| {
+            c.with_max_negotiating_inbound_streams(32)
+                .with_idle_connection_timeout(Duration::from_secs(0))
+                .with_dial_concurrency_factor(5.try_into().unwrap())
+        })
+        .build();
 
     let (command_sender, command_receiver) = mpsc::channel(20);
     let (event_sender, event_receiver) = mpsc::channel(20);

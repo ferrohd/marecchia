@@ -22,7 +22,6 @@ pub async fn start() -> Result<(), JsValue> {
     let server_peer_id = "".parse().unwrap();
     let server_addr = "/ip4/0.0.0.0".parse::<Multiaddr>().unwrap();
 
-    client.start_listening().await.unwrap();
     client.dial(server_peer_id, server_addr).await;
 
     // Player request segment
@@ -60,16 +59,13 @@ pub async fn start() -> Result<(), JsValue> {
                     client.start_providing(segment_id.to_string()).await;
                     Some(seg)
                 }
-                None => {
-                    match http::downloader::download_segment(segment_id)
-                    .await {
-                        Ok(segment) => {
-                            local_storage.set(segment_id, segment.to_vec());
-                            client.start_providing(segment_id.to_string()).await;
-                            Some(segment)
-                        }
-                        Err(_) => None,
+                None => match http::downloader::download_segment(segment_id).await {
+                    Ok(segment) => {
+                        local_storage.set(segment_id, segment.to_vec());
+                        client.start_providing(segment_id.to_string()).await;
+                        Some(segment)
                     }
+                    Err(_) => None,
                 },
             }
         }

@@ -2,13 +2,14 @@ use std::time::Duration;
 
 use libp2p::{
     autonat,
+    identity::Keypair,
     kad::{self, store::MemoryStore, Behaviour},
     ping,
     request_response::{self, ProtocolSupport},
     swarm::NetworkBehaviour,
-    PeerId, StreamProtocol, identity::Keypair,
+    PeerId, StreamProtocol,
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "ComposedSwarmEvent")]
