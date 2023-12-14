@@ -1,6 +1,5 @@
-use std::{collections::HashSet, error::Error};
 use futures::Stream;
-//use libp2p::webrtc_websys;
+use std::{collections::HashSet, error::Error};
 use libp2p::{
     futures::{
         channel::{mpsc, oneshot},
@@ -15,7 +14,7 @@ use libp2p_webrtc_websys as webrtc_websys;
 
 use super::{
     behaviour::{ComposedSwarmBehaviour, SegmentResponse},
-    event_loop::{EventLoop, LoopCommand, LoopEvent}
+    event_loop::{EventLoop, LoopCommand, LoopEvent},
 };
 
 pub async fn new(
@@ -37,8 +36,6 @@ pub async fn new(
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
     let swarm = {
-        let behaviour = ComposedSwarmBehaviour::default(peer_id);
-
         let swarm_config = swarm::Config::with_wasm_executor()
             .with_max_negotiating_inbound_streams(32)
             .with_dial_concurrency_factor(5.try_into().unwrap());
@@ -48,8 +45,9 @@ pub async fn new(
             .with_other_transport(|key| {
                 webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
             })?
-            .with_behaviour(|_| behaviour)?
-            .with_swarm_config(swarm_config)
+            .with_behaviour(|key| ComposedSwarmBehaviour::from(key))?
+            .build()
+
 
         //.max_negotiating_inbound_streams(32)
     };
@@ -70,18 +68,6 @@ pub async fn new(
 pub struct Client(mpsc::Sender<LoopCommand>);
 
 impl Client {
-    /// Listen for incoming connections on the given address.
-    pub async fn start_listening(&mut self) -> Result<(), Box<dyn Error + Send>> {
-        let addr = "/ip4/0.0.0.0".parse::<Multiaddr>().unwrap();
-
-        let (sender, receiver) = oneshot::channel();
-        self.0
-            .send(LoopCommand::StartListening { addr, sender })
-            .await
-            .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not to be dropped.")
-    }
-
     /// Dial the given peer at the given address.
     pub async fn dial(
         &mut self,

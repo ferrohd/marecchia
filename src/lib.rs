@@ -1,9 +1,8 @@
-use futures::{StreamExt, future::select_ok};
+use futures::{future::select_ok, StreamExt};
 use libp2p::Multiaddr;
 use p2p::client;
 use storage::memory_storage::MemoryStorage;
 use wasm_bindgen::prelude::*;
-use wasm_logger;
 
 use crate::{p2p::event_loop::LoopEvent, storage::SegmentStorage};
 
@@ -14,7 +13,7 @@ mod storage;
 
 #[wasm_bindgen(start)]
 pub async fn start() -> Result<(), JsValue> {
-    wasm_logger::init(wasm_logger::Config::default());
+    tracing_wasm::set_as_global_default();
 
     let mut local_storage = MemoryStorage::new();
 
@@ -24,36 +23,55 @@ pub async fn start() -> Result<(), JsValue> {
     let server_addr = "/ip4/0.0.0.0".parse::<Multiaddr>().unwrap();
 
     client.start_listening().await.unwrap();
-    client.dial(server_peer_id, server_addr);
+    client.dial(server_peer_id, server_addr).await;
 
     // Player request segment
     let segment_id = "segment_1";
     let segment = match local_storage.get(segment_id) {
-        Some(segment) => Some(segment.to_vec()),
+        Some(segment) => Some(segment.to_owned()),
         None => {
             let providers = client.get_providers(segment_id.to_string()).await;
+
             if providers.is_empty() {
-                http::downloader::download_segment(segment_id).await.ok();
+                match http::downloader::download_segment(segment_id).await {
+                    Ok(segment) => {
+                        local_storage.set(segment_id, segment.to_vec());
+                        client.start_providing(segment_id.to_string()).await;
+                        return Ok(());
+                    }
+                    Err(_) => return Ok(()),
+                }
             }
 
-            let segment_request = providers
-                .iter()
-                .map(|p| Box::pin(client.request_segment(p.to_owned(), segment_id.to_string())));
-            let segment_response = select_ok(segment_request).await;
-            let segment = match segment_response {
-                Ok((segment, _)) => match segment {
-                    Some(segment) => Some(segment),
-                    None => http::downloader::download_segment(segment_id).await.ok(),
+            let mut segments = Vec::new();
+            for provider in providers {
+                let r = client
+                    .request_segment(provider.to_owned(), segment_id.to_string())
+                    .await
+                    .ok()
+                    .flatten();
+                segments.push(r);
+            }
+
+            let segment = segments.into_iter().find(|s| s.is_some()).flatten();
+            match segment {
+                Some(seg) => {
+                    local_storage.set(segment_id, seg.to_vec());
+                    client.start_providing(segment_id.to_string()).await;
+                    Some(seg)
+                }
+                None => {
+                    match http::downloader::download_segment(segment_id)
+                    .await {
+                        Ok(segment) => {
+                            local_storage.set(segment_id, segment.to_vec());
+                            client.start_providing(segment_id.to_string()).await;
+                            Some(segment)
+                        }
+                        Err(_) => None,
+                    }
                 },
-                Err(a) => http::downloader::download_segment(segment_id).await.ok(),
-            };
-
-            if let Some(seg) = segment.clone() {
-                local_storage.set(segment_id, seg);
-                client.start_providing(segment_id.to_string()).await;
             }
-
-            segment
         }
     };
     wasm_bindgen_futures::spawn_local(async move {

@@ -6,7 +6,7 @@ use libp2p::{
     ping,
     request_response::{self, ProtocolSupport},
     swarm::NetworkBehaviour,
-    PeerId, StreamProtocol,
+    PeerId, StreamProtocol, identity::Keypair,
 };
 use serde::{Serialize, Deserialize};
 
@@ -18,8 +18,8 @@ pub struct ComposedSwarmBehaviour {
     pub kademlia: Behaviour<MemoryStore>,
 }
 
-impl ComposedSwarmBehaviour {
-    pub fn default(peer_id: PeerId) -> Self {
+impl From<PeerId> for ComposedSwarmBehaviour {
+    fn from(peer_id: PeerId) -> Self {
         // Define the various behaviours of the swarm.
         let ping_config = ping::Config::new()
             .with_timeout(Duration::from_secs(10))
@@ -51,6 +51,13 @@ impl ComposedSwarmBehaviour {
             kademlia,
             segment_rr: request_response,
         }
+    }
+}
+
+impl From<&Keypair> for ComposedSwarmBehaviour {
+    fn from(keypair: &Keypair) -> Self {
+        let peer_id = keypair.public().to_peer_id();
+        Self::from(peer_id)
     }
 }
 

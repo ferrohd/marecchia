@@ -241,12 +241,6 @@ impl EventLoop {
 
     async fn handle_command(&mut self, command: LoopCommand) {
         match command {
-            LoopCommand::StartListening { addr, sender } => {
-                let _ = match self.swarm.listen_on(addr) {
-                    Ok(_) => sender.send(Ok(())),
-                    Err(e) => sender.send(Err(Box::new(e))),
-                };
-            }
             LoopCommand::Dial {
                 peer_id,
                 peer_addr,
@@ -321,10 +315,6 @@ impl EventLoop {
 
 #[derive(Debug)]
 pub enum LoopCommand {
-    StartListening {
-        addr: Multiaddr,
-        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
-    },
     Dial {
         peer_id: PeerId,
         peer_addr: Multiaddr,
