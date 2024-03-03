@@ -1,4 +1,3 @@
-use m3u8_rs;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
@@ -13,7 +12,7 @@ async fn get_playlist(url: &str) -> Result<m3u8_rs::MasterPlaylist, DownloadErro
     opts.method("GET");
     opts.mode(RequestMode::Cors);
 
-    let request = Request::new_with_str_and_init(&url, &opts).unwrap();
+    let request = Request::new_with_str_and_init(url, &opts).unwrap();
 
     let window = web_sys::window().unwrap();
     let resp = JsFuture::from(window.fetch_with_request(&request))
@@ -28,7 +27,7 @@ async fn get_playlist(url: &str) -> Result<m3u8_rs::MasterPlaylist, DownloadErro
 
     let data = resp
         .text()
-        .and_then(|p| Ok(JsFuture::from(p)))
+        .map(JsFuture::from)
         .map_err(|_| DownloadError::DataError)?
         .await
         .map_err(|_| DownloadError::DataError)?

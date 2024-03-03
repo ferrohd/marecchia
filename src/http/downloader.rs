@@ -20,7 +20,7 @@ pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
     opts.mode(RequestMode::Cors);
 
     let request =
-        Request::new_with_str_and_init(&url, &opts).map_err(|_| DownloadError::NetworkError)?;
+        Request::new_with_str_and_init(url, &opts).map_err(|_| DownloadError::NetworkError)?;
 
     let window = web_sys::window().ok_or(DownloadError::WindowError)?;
     let resp = JsFuture::from(window.fetch_with_request(&request))
@@ -35,7 +35,7 @@ pub async fn download_segment(url: &str) -> Result<Vec<u8>, DownloadError> {
 
     let data = resp
         .array_buffer()
-        .and_then(|p| Ok(JsFuture::from(p)))
+        .map(JsFuture::from)
         .map_err(|_| DownloadError::DataError)?
         .await
         .map_err(|_| DownloadError::DataError)?;

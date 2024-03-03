@@ -3,12 +3,12 @@ use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
 };
-use libp2p::gossipsub::{self, IdentTopic, Topic};
+use libp2p::gossipsub::{self, IdentTopic};
 use libp2p::multiaddr::Protocol;
-use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace, Ttl};
+use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace};
 use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{ping, PeerId};
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{hash_map, HashMap};
 use std::error::Error;
 
 use super::behaviour::*;
@@ -19,8 +19,7 @@ pub struct EventLoop {
     swarm: Swarm<ComposedSwarmBehaviour>,
     command_receiver: mpsc::Receiver<Command>,
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), Box<dyn Error + Send>>>>,
-    pending_request_file:
-        HashMap<String, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
+    segment_request: HashMap<String, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
 }
 
 impl EventLoop {
@@ -35,7 +34,7 @@ impl EventLoop {
             swarm,
             command_receiver,
             pending_dial: Default::default(),
-            pending_request_file: Default::default(),
+            segment_request: Default::default(),
         }
     }
 
@@ -56,7 +55,10 @@ impl EventLoop {
 
         loop {
             libp2p::futures::select! {
-                event = self.swarm.next() => self.handle_event(event.expect("Swarm stream to be infinite.")).await,
+                event = self.swarm.next() => match event {
+                    Some(e) => self.handle_event(e).await,
+                    None => return,
+                },
                 command = self.command_receiver.next() => match command {
                     Some(c) => self.handle_command(c).await,
                     // Command channel closed, thus shutting down the network event loop.
@@ -76,7 +78,7 @@ impl EventLoop {
             SwarmEvent::IncomingConnection {
                 connection_id,
                 local_addr,
-                send_back_addr,
+                send_back_addr: _,
             } => {
                 // A new incoming connection has been established.
                 tracing::info!(
@@ -318,9 +320,10 @@ impl EventLoop {
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 // A remote peer does not support gossipsub.
                 tracing::warn!(
-                    "Remote peer {:?} connected but does not support gossipsub",
+                    "Remote peer {:?} connected but does not support gossipsub, disconnecting",
                     peer_id
                 );
+                let _ = self.swarm.disconnect_peer_id(peer_id);
             }
         }
     }
@@ -342,10 +345,7 @@ impl EventLoop {
             } => {
                 // If not already dialing, dial the peer.
                 if let hash_map::Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
-                    match self
-                        .swarm
-                        .dial(peer_addr.with(Protocol::P2p(peer_id.into())))
-                    {
+                    match self.swarm.dial(peer_addr.with(Protocol::P2p(peer_id))) {
                         Ok(()) => {
                             e.insert(sender);
                         }
@@ -356,13 +356,29 @@ impl EventLoop {
                 }
             }
             Command::ProvideSegment { segment_id, data } => {
+                let segment_id_clone = segment_id.clone();
                 let topic = IdentTopic::new(segment_id);
-                self.swarm.behaviour_mut().pubsub.publish(topic, data);
+                match self.swarm.behaviour_mut().pubsub.publish(topic, data) {
+                    Ok(message_id) => {
+                        tracing::info!(
+                            "Published segment {:?} with message {:?}",
+                            segment_id_clone,
+                            message_id
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to publish segment {:?} with error {:?}",
+                            segment_id_clone,
+                            e
+                        );
+                    }
+                }
             }
             Command::RequestSegment { segment_id, sender } => {
                 let topic = IdentTopic::new(segment_id);
                 let _ = self.swarm.behaviour_mut().pubsub.subscribe(&topic);
-                self.pending_request_file.insert(topic.to_string(), sender);
+                self.segment_request.insert(topic.to_string(), sender);
             }
         }
     }

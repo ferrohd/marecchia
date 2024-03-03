@@ -28,7 +28,7 @@ impl From<&Keypair> for ComposedSwarmBehaviour {
         let ping = ping::Behaviour::new(ping_config);
 
         let autonat_config = autonat::Config::default();
-        let autonat = autonat::Behaviour::new(peer_id, autonat_config);
+        let _autonat = autonat::Behaviour::new(peer_id, autonat_config);
 
         let rendezvous = rendezvous::Behaviour::new(keypair.to_owned());
         // TODO: FINISH CONFIG

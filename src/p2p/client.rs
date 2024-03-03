@@ -1,4 +1,3 @@
-use futures::Stream;
 use libp2p::{
     futures::{
         channel::{mpsc, oneshot},
@@ -7,14 +6,13 @@ use libp2p::{
     identity::{self, PeerId},
     multiaddr::Multiaddr,
     rendezvous::Namespace,
-    request_response::ResponseChannel,
     SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use std::{collections::HashSet, error::Error, num::NonZeroU8, time::Duration};
+use std::{error::Error, num::NonZeroU8, time::Duration};
 
 use super::{
-    behaviour::{ComposedSwarmBehaviour, SegmentResponse},
+    behaviour::ComposedSwarmBehaviour,
     event_loop::{Command, EventLoop},
 };
 
@@ -37,9 +35,7 @@ pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Clien
     // higher layer network behaviour logic.
     let swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_wasm_bindgen()
-        .with_other_transport(|key| {
-            webrtc_websys::Transport::new(webrtc_websys::Config::new(&key))
-        })?
+        .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
         .with_behaviour(|key| ComposedSwarmBehaviour::from(key))?
         .with_swarm_config(|c| {
             c.with_max_negotiating_inbound_streams(32)
