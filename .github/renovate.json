@@ -10,25 +10,16 @@
     "ferrohd"
   ],
   "dependencyDashboard": true,
+  "enabled": true,
   "automerge": true,
-  "patch": {
-    "enabled": false
-  },
   "major": {
     "automerge": false
   },
   "packageRules": [
     {
-      "groupName": "cargo all non-major dependencies",
-      "groupSlug": "cargo-all-minor-patch",
-      "matchDatasources": [
-        "crate"
-      ],
-      "matchPackagePatterns": [
-        "*"
-      ],
-      "matchUpdateTypes": [
-        "minor"
+      "groupName": "Cargo Dependencies",
+      "matchManagers": [
+        "cargo"
       ]
     },
     {
