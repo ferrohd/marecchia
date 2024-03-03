@@ -2,12 +2,11 @@ use std::time::Duration;
 
 use libp2p::{
     autonat,
+    gossipsub::{self, MessageAuthenticity},
     identity::Keypair,
-    kad::{self, store::MemoryStore, Behaviour},
     ping,
-    request_response::{self, ProtocolSupport},
+    rendezvous::client as rendezvous,
     swarm::NetworkBehaviour,
-    PeerId, StreamProtocol,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,12 +14,13 @@ use serde::{Deserialize, Serialize};
 #[behaviour(to_swarm = "ComposedSwarmEvent")]
 pub struct ComposedSwarmBehaviour {
     pub ping: ping::Behaviour,
-    pub segment_rr: request_response::cbor::Behaviour<SegmentRequest, SegmentResponse>,
-    pub kademlia: Behaviour<MemoryStore>,
+    pub rendezvous: rendezvous::Behaviour,
+    pub pubsub: gossipsub::Behaviour,
 }
 
-impl From<PeerId> for ComposedSwarmBehaviour {
-    fn from(peer_id: PeerId) -> Self {
+impl From<&Keypair> for ComposedSwarmBehaviour {
+    fn from(keypair: &Keypair) -> Self {
+        let peer_id = keypair.public().to_peer_id();
         // Define the various behaviours of the swarm.
         let ping_config = ping::Config::new()
             .with_timeout(Duration::from_secs(10))
@@ -30,43 +30,26 @@ impl From<PeerId> for ComposedSwarmBehaviour {
         let autonat_config = autonat::Config::default();
         let autonat = autonat::Behaviour::new(peer_id, autonat_config);
 
-        let kademlia_config = kad::Config::default()
-            //.set_connection_idle_timeout(Duration::from_secs(60))
-            .set_provider_publication_interval(Some(Duration::from_secs(30)))
-            .set_provider_record_ttl(None)
-            .set_publication_interval(Some(Duration::from_secs(30)))
-            .set_record_ttl(Some(Duration::from_secs(60)))
-            .set_replication_interval(Some(Duration::from_secs(5)))
-            .to_owned();
-        let kademlia_store = kad::store::MemoryStore::new(peer_id);
-        let kademlia = kad::Behaviour::with_config(peer_id, kademlia_store, kademlia_config);
-
-        let request_response = request_response::Behaviour::new(
-            [(StreamProtocol::new("/segment/1"), ProtocolSupport::Full)],
-            request_response::Config::default(),
-        );
-
+        let rendezvous = rendezvous::Behaviour::new(keypair.to_owned());
+        // TODO: FINISH CONFIG
+        let gossipsub_config = gossipsub::Config::default();
+        let pubsub =
+            gossipsub::Behaviour::new(MessageAuthenticity::Author(peer_id), gossipsub_config)
+                .unwrap();
         Self {
             ping,
             //autonat,
-            kademlia,
-            segment_rr: request_response,
+            pubsub,
+            rendezvous,
         }
-    }
-}
-
-impl From<&Keypair> for ComposedSwarmBehaviour {
-    fn from(keypair: &Keypair) -> Self {
-        let peer_id = keypair.public().to_peer_id();
-        Self::from(peer_id)
     }
 }
 
 #[derive(Debug)]
 pub enum ComposedSwarmEvent {
     Ping(ping::Event),
-    RequestResponse(request_response::Event<SegmentRequest, SegmentResponse>),
-    Kademlia(kad::Event),
+    Rendezvous(rendezvous::Event),
+    Gossipsub(gossipsub::Event),
 }
 
 impl From<ping::Event> for ComposedSwarmEvent {
@@ -75,15 +58,15 @@ impl From<ping::Event> for ComposedSwarmEvent {
     }
 }
 
-impl From<request_response::Event<SegmentRequest, SegmentResponse>> for ComposedSwarmEvent {
-    fn from(event: request_response::Event<SegmentRequest, SegmentResponse>) -> Self {
-        ComposedSwarmEvent::RequestResponse(event)
+impl From<rendezvous::Event> for ComposedSwarmEvent {
+    fn from(event: rendezvous::Event) -> Self {
+        ComposedSwarmEvent::Rendezvous(event)
     }
 }
 
-impl From<kad::Event> for ComposedSwarmEvent {
-    fn from(event: kad::Event) -> Self {
-        ComposedSwarmEvent::Kademlia(event)
+impl From<gossipsub::Event> for ComposedSwarmEvent {
+    fn from(event: gossipsub::Event) -> Self {
+        ComposedSwarmEvent::Gossipsub(event)
     }
 }
 

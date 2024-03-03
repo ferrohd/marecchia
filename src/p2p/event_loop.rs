@@ -3,11 +3,9 @@ use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
 };
-use libp2p::kad::{self, GetProvidersError, GetProvidersOk, QueryId, QueryResult, RecordKey};
+use libp2p::gossipsub::{self, IdentTopic, Topic};
 use libp2p::multiaddr::Protocol;
-use libp2p::request_response::{
-    self, Event as RequestResponseEvent, OutboundRequestId, ResponseChannel,
-};
+use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace, Ttl};
 use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{ping, PeerId};
 use std::collections::{hash_map, HashMap, HashSet};
@@ -16,37 +14,49 @@ use std::error::Error;
 use super::behaviour::*;
 
 pub struct EventLoop {
+    namespace: Namespace,
+    cookie: Cookie,
     swarm: Swarm<ComposedSwarmBehaviour>,
-    command_receiver: mpsc::Receiver<LoopCommand>,
-    event_sender: mpsc::Sender<LoopEvent>,
+    command_receiver: mpsc::Receiver<Command>,
     pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), Box<dyn Error + Send>>>>,
-    pending_start_providing: HashMap<QueryId, oneshot::Sender<()>>,
-    pending_get_providers: HashMap<QueryId, oneshot::Sender<HashSet<PeerId>>>,
     pending_request_file:
-        HashMap<OutboundRequestId, oneshot::Sender<Result<Option<Vec<u8>>, Box<dyn Error + Send>>>>,
+        HashMap<String, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
 }
 
 impl EventLoop {
     pub fn new(
+        namespace: Namespace,
         swarm: Swarm<ComposedSwarmBehaviour>,
-        command_receiver: mpsc::Receiver<LoopCommand>,
-        event_sender: mpsc::Sender<LoopEvent>,
+        command_receiver: mpsc::Receiver<Command>,
     ) -> Self {
         Self {
+            cookie: Cookie::for_namespace(namespace.clone()),
+            namespace,
             swarm,
             command_receiver,
-            event_sender,
             pending_dial: Default::default(),
-            pending_start_providing: Default::default(),
-            pending_get_providers: Default::default(),
             pending_request_file: Default::default(),
         }
     }
 
     pub async fn run(mut self) {
+        // Register with the rendezvous node.
+        let rendezvous_node = PeerId::random();
+        match self.swarm.behaviour_mut().rendezvous.register(
+            self.namespace.clone(),
+            rendezvous_node,
+            Some(60),
+        ) {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Failed to register with rendezvous node: {:?}", e);
+                return;
+            }
+        }
+
         loop {
             libp2p::futures::select! {
-                event = self.swarm.next() => self.handle_event(event.expect("Swarm stream to be infinite.")).await  ,
+                event = self.swarm.next() => self.handle_event(event.expect("Swarm stream to be infinite.")).await,
                 command = self.command_receiver.next() => match command {
                     Some(c) => self.handle_command(c).await,
                     // Command channel closed, thus shutting down the network event loop.
@@ -61,197 +71,277 @@ impl EventLoop {
             SwarmEvent::Behaviour(behaviour) => self.handle_behaviour_event(behaviour).await,
             SwarmEvent::NewListenAddr { address, .. } => {
                 // Started listening on a new address.
-                let local_peer_id = *self.swarm.local_peer_id();
-                eprintln!(
-                    "Local node is listening on {:?}",
-                    address.with(Protocol::P2p(local_peer_id.into()))
+                tracing::info!("Local node is listening on {:?}", address);
+            }
+            SwarmEvent::IncomingConnection {
+                connection_id,
+                local_addr,
+                send_back_addr,
+            } => {
+                // A new incoming connection has been established.
+                tracing::info!(
+                    "Incoming connection from {:?} with conn_id {:?}",
+                    local_addr,
+                    connection_id
                 );
             }
-            SwarmEvent::IncomingConnection { .. } => {}
             SwarmEvent::ConnectionEstablished {
                 peer_id, endpoint, ..
             } => {
+                // A new connection has been established. (Either incoming or outgoing)
+                tracing::info!("Connection established with peer {:?}", peer_id);
                 if endpoint.is_dialer() {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Ok(()));
                     }
                 }
             }
-            SwarmEvent::ConnectionClosed { .. } => {}
-            SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
+            SwarmEvent::ConnectionClosed {
+                connection_id,
+                peer_id,
+                num_established,
+                endpoint,
+                cause,
+            } => {
+                // A connection has been closed.
+                tracing::info!("Connection {:?} closed  on endpoint {:?} with peer {:?} with error {:?}, {:?} connections remaining", connection_id, endpoint, peer_id, cause, num_established);
+            }
+            SwarmEvent::OutgoingConnectionError {
+                connection_id,
+                peer_id,
+                error,
+                ..
+            } => {
+                // An outgoing connection has failed.
+                tracing::error!(
+                    "Outgoing connection {:?} to peer {:?} failed with error {:?}",
+                    connection_id,
+                    peer_id,
+                    error
+                );
                 if let Some(peer_id) = peer_id {
                     if let Some(sender) = self.pending_dial.remove(&peer_id) {
                         let _ = sender.send(Err(Box::new(error)));
                     }
                 }
             }
-            SwarmEvent::IncomingConnectionError { .. } => {}
+            SwarmEvent::IncomingConnectionError {
+                connection_id,
+                local_addr,
+                send_back_addr,
+                error,
+            } => {
+                // An incoming connection has failed during initial handshake.
+                tracing::error!(
+                    "Incoming  handshake connection {:?} on {:?} from {:?} failed with error {:?}",
+                    connection_id,
+                    local_addr,
+                    send_back_addr,
+                    error
+                );
+            }
             SwarmEvent::Dialing {
                 peer_id,
                 connection_id,
             } => println!(
-                "Dialing user with conn_id {:?} and peer_id {:?}",
-                connection_id,
-                peer_id.unwrap()
+                "Dialing user {:?} with connection id {:?} ",
+                connection_id, peer_id
             ),
-            SwarmEvent::ExpiredListenAddr { .. } => {}
+            SwarmEvent::ExpiredListenAddr {
+                listener_id: _listener,
+                address,
+            } => {
+                // A listening address has expired.
+                tracing::warn!("Listening address {:?} expired", address);
+            }
             SwarmEvent::ListenerClosed {
                 listener_id,
                 addresses,
                 reason,
-            } => {}
-            SwarmEvent::ListenerError { listener_id, error } => {}
+            } => {
+                // A listener has been closed.
+                tracing::info!(
+                    "Listener {:?} on address: {:?} closed with reason {:?}",
+                    listener_id,
+                    addresses,
+                    reason
+                );
+            }
+            SwarmEvent::ListenerError { listener_id, error } => {
+                // A listener has encountered a non fatal error.
+                tracing::warn!(
+                    "Listener {:?} encountered a non fatal error {:?}",
+                    listener_id,
+                    error
+                );
+            }
             // TODO: handle the rest
             _ => {}
         }
     }
 
-    async fn handle_behaviour_event(&mut self, behaviour_event: ComposedSwarmEvent) {
-        match behaviour_event {
+    async fn handle_behaviour_event(&mut self, event: ComposedSwarmEvent) {
+        match event {
             ComposedSwarmEvent::Ping(event) => self.handle_ping_event(event).await,
-            ComposedSwarmEvent::Kademlia(event) => self.handle_kademlia_event(event).await,
-            ComposedSwarmEvent::RequestResponse(event) => self.handle_segment_rr_event(event).await,
+            ComposedSwarmEvent::Rendezvous(event) => self.handle_rendezvous_event(event).await,
+            ComposedSwarmEvent::Gossipsub(event) => self.handle_gossipsub_event(event).await,
         }
     }
 
-    async fn handle_ping_event(&mut self, ping_event: ping::Event) {}
-
-    async fn handle_kademlia_event(&mut self, kaemlia_event: kad::Event) {
-        match kaemlia_event {
-            kad::Event::ModeChanged { new_mode } => {}
-            kad::Event::RoutingUpdated { peer, .. } => {}
-            kad::Event::UnroutablePeer { peer } => {}
-            kad::Event::PendingRoutablePeer { peer, address } => {}
-            kad::Event::RoutablePeer { peer, address } => {}
-            kad::Event::InboundRequest { request } => {}
-            kad::Event::OutboundQueryProgressed {
-                id,
-                result,
-                stats,
-                step,
-            } => {
-                match result {
-                    QueryResult::StartProviding(_) => {
-                        // Start providing the segment. Emit event.
-                        let sender: oneshot::Sender<()> = self
-                            .pending_start_providing
-                            .remove(&id)
-                            .expect("Completed query to be previously pending.");
-                        let _ = sender.send(());
-                    }
-                    QueryResult::GetProviders(result) => {
-                        match result {
-                            Ok(providers_ok) => {
-                                match providers_ok {
-                                    GetProvidersOk::FoundProviders { providers, key } => {
-                                        // Found providers of the segment. Emit event.
-                                        if let Some(sender) = self.pending_get_providers.remove(&id)
-                                        {
-                                            sender
-                                                .send(providers)
-                                                .expect("Receiver not to be dropped");
-                                            // Finish the query. We are only interested in the first result. Tell the swarm to stop querying.
-                                            self.swarm
-                                                .behaviour_mut()
-                                                .kademlia
-                                                .query_mut(&id)
-                                                .unwrap()
-                                                .finish();
-                                        }
-                                    }
-                                    GetProvidersOk::FinishedWithNoAdditionalRecord {
-                                        closest_peers,
-                                    } => {
-                                        // No providers of the segment found.
-                                        // ! Start downloading from the CDN.
-                                        // ? Should we try to find providers of the next segment?
-                                    }
-                                }
-                            }
-                            Err(providers_err) => match providers_err {
-                                GetProvidersError::Timeout { key, closest_peers } => {
-                                    // The query of the segment timed out.
-                                    // ? Should we use the timeout to force a threshold within the segment must be found?
-                                    // ! Start downloading from the CDN.
-                                }
-                            },
-                        }
-                    }
-                    // The Kademlia DHT is used to find owners of a segment.
-                    // The segment is not stored in the DHT. The value of a key is never accessed.
-                    QueryResult::Bootstrap(result) => {}
-                    QueryResult::GetRecord(result) => {}
-                    QueryResult::PutRecord(result) => {}
-                    QueryResult::GetClosestPeers(result) => {}
-                    _ => {} // Ignore events from automatic queries.
-                }
+    async fn handle_ping_event(&mut self, ping_event: ping::Event) {
+        match ping_event.result {
+            Ok(duration) => {
+                // The ping was successful.
+                tracing::debug!(
+                    "Ping to peer {:?} successful, {:?}",
+                    ping_event.peer,
+                    duration
+                )
+            }
+            Err(failure) => {
+                // Disconnect from the peer.
+                tracing::warn!(
+                    "Ping to peer {:?} failed, disconnecting. Reason: {:?}",
+                    ping_event.peer,
+                    failure
+                );
+                let _ = self.swarm.disconnect_peer_id(ping_event.peer);
             }
         }
     }
-    async fn handle_segment_rr_event(
-        &mut self,
-        request_response_event: RequestResponseEvent<SegmentRequest, SegmentResponse>,
-    ) {
-        match request_response_event {
-            RequestResponseEvent::Message { message, .. } => match message {
-                request_response::Message::Request {
-                    request, channel, ..
-                } => {
-                    // Received a segment request, emit it.
-                    self.event_sender
-                        .send(LoopEvent::SegmentRequest {
-                            segment_id: request.0,
-                            channel,
-                        })
-                        .await
-                        .expect("Event receiver not to be dropped.");
-                }
-                request_response::Message::Response {
-                    request_id,
-                    response,
-                } => {
-                    // Received a segment response, remove from the pending requests and emit it. (Enjoy your mojito)
-                    let _ = self
-                        .pending_request_file
-                        .remove(&request_id)
-                        .expect("Request to still be pending.")
-                        .send(Ok(response.0));
-                }
-            },
-            RequestResponseEvent::OutboundFailure {
-                request_id, error, ..
+
+    async fn handle_rendezvous_event(&mut self, rendezvous_event: rendezvous::Event) {
+        match rendezvous_event {
+            rendezvous::Event::Discovered {
+                rendezvous_node,
+                registrations,
+                cookie,
             } => {
-                // The request failed, remove from the pending requests and emit an error.
-                let _ = self
-                    .pending_request_file
-                    .remove(&request_id)
-                    .expect("Request to still be pending.")
-                    .send(Err(Box::new(error)));
+                // Discovered peers from the rendezvous node.
+                tracing::info!(
+                    "Discovered {:?} peers from rendezvous node {:?}",
+                    registrations.len(),
+                    rendezvous_node
+                );
+                // Update cookie (next requets avoid dsicovering the same peers again)
+                self.cookie = cookie;
+                for registration in registrations {
+                    for address in registration.record.addresses() {
+                        let peer = registration.record.peer_id();
+                        tracing::info!("Dialing peer {:?} with address {:?}", peer, address);
+
+                        let p2p_suffix = Protocol::P2p(peer);
+                        let address_with_p2p =
+                            if !address.ends_with(&Multiaddr::empty().with(p2p_suffix.clone())) {
+                                address.clone().with(p2p_suffix)
+                            } else {
+                                address.clone()
+                            };
+
+                        self.swarm.dial(address_with_p2p).unwrap();
+                    }
+                }
             }
-            RequestResponseEvent::InboundFailure {
-                peer,
-                request_id,
+            rendezvous::Event::DiscoverFailed {
+                rendezvous_node,
+                namespace,
                 error,
             } => {
-                // ! Download from CDN
+                // Failed to discover peers from the rendezvous node.
+                tracing::error!(
+                    "Failed to discover peers from rendezvous node {:?} in namespace {:?} with error {:?}",
+                    rendezvous_node,
+                    namespace,
+                    error
+                );
             }
-            RequestResponseEvent::ResponseSent { .. } => {}
+            rendezvous::Event::Expired { peer } => {
+                // Peer registration with the rendezvous node has expired. ()
+                tracing::info!("Connection details we learned from node {:?} expired", peer);
+            }
+            rendezvous::Event::Registered {
+                rendezvous_node,
+                ttl,
+                namespace,
+            } => {
+                // Registered with the rendezvous node.
+                tracing::info!(
+                    "Registered with rendezvous node {:?} in namespace {:?} with ttl {:?}",
+                    rendezvous_node,
+                    namespace,
+                    ttl
+                );
+            }
+            rendezvous::Event::RegisterFailed {
+                rendezvous_node,
+                namespace,
+                error,
+            } => {
+                // Failed to register with the rendezvous node.
+                tracing::error!(
+                    "Failed to register with rendezvous node {:?} in namespace {:?} with error {:?}",
+                    rendezvous_node,
+                    namespace,
+                    error
+                );
+            }
         }
     }
 
-    async fn handle_command(&mut self, command: LoopCommand) {
+    async fn handle_gossipsub_event(&mut self, event: gossipsub::Event) {
+        match event {
+            gossipsub::Event::Message {
+                propagation_source,
+                message_id,
+                message,
+            } => {
+                // A new message has been received.
+                tracing::info!(
+                    "Received message {:?} from {:?} with topic {:?}",
+                    message_id,
+                    propagation_source,
+                    message.topic.as_str()
+                );
+            }
+            gossipsub::Event::Subscribed { peer_id, topic } => {
+                // A remote subscribed to a new topic.
+                tracing::info!("Remote peer {:?} subscribed to topic {:?}", peer_id, topic);
+            }
+            gossipsub::Event::Unsubscribed { peer_id, topic } => {
+                // A remote unsubscribed from a topic.
+                tracing::info!(
+                    "Remote peer {:?} unsubscribed from topic {:?}",
+                    peer_id,
+                    topic
+                );
+            }
+            gossipsub::Event::GossipsubNotSupported { peer_id } => {
+                // A remote peer does not support gossipsub.
+                tracing::warn!(
+                    "Remote peer {:?} connected but does not support gossipsub",
+                    peer_id
+                );
+            }
+        }
+    }
+
+    async fn handle_command(&mut self, command: Command) {
         match command {
-            LoopCommand::Dial {
+            Command::StartListening { addr, sender } => match self.swarm.listen_on(addr) {
+                Ok(_) => {
+                    let _ = sender.send(Ok(()));
+                }
+                Err(e) => {
+                    let _ = sender.send(Err(Box::new(e)));
+                }
+            },
+            Command::Dial {
                 peer_id,
                 peer_addr,
                 sender,
             } => {
                 // If not already dialing, dial the peer.
                 if let hash_map::Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
-                    self.swarm
-                        .behaviour_mut()
-                        .kademlia
-                        .add_address(&peer_id, peer_addr.clone());
                     match self
                         .swarm
                         .dial(peer_addr.with(Protocol::P2p(peer_id.into())))
@@ -265,88 +355,36 @@ impl EventLoop {
                     }
                 }
             }
-            LoopCommand::StartProviding { segment_id, sender } => {
-                let query_id = self
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .start_providing(segment_id.into_bytes().into())
-                    .expect("No store error.");
-                self.pending_start_providing.insert(query_id, sender);
+            Command::ProvideSegment { segment_id, data } => {
+                let topic = IdentTopic::new(segment_id);
+                self.swarm.behaviour_mut().pubsub.publish(topic, data);
             }
-            LoopCommand::StopProviding { segment_id, sender } => {
-                let key: RecordKey = segment_id.into_bytes().into();
-                self.swarm.behaviour_mut().kademlia.stop_providing(&key);
-                let _ = sender.send(());
-            }
-            LoopCommand::GetProviders { segment_id, sender } => {
-                let query_id = self
-                    .swarm
-                    .behaviour_mut()
-                    .kademlia
-                    .get_providers(segment_id.into_bytes().into());
-                self.pending_get_providers.insert(query_id, sender);
-            }
-            LoopCommand::RequestSegment {
-                segment_id: file_name,
-                peer,
-                sender,
-            } => {
-                let request_id = self
-                    .swarm
-                    .behaviour_mut()
-                    .segment_rr
-                    .send_request(&peer, SegmentRequest(file_name));
-                self.pending_request_file.insert(request_id, sender);
-            }
-            LoopCommand::RespondSegment {
-                segment_data,
-                channel,
-            } => {
-                self.swarm
-                    .behaviour_mut()
-                    .segment_rr
-                    .send_response(channel, SegmentResponse(segment_data))
-                    .expect("Connection to peer to be still open.");
+            Command::RequestSegment { segment_id, sender } => {
+                let topic = IdentTopic::new(segment_id);
+                let _ = self.swarm.behaviour_mut().pubsub.subscribe(&topic);
+                self.pending_request_file.insert(topic.to_string(), sender);
             }
         }
     }
 }
 
 #[derive(Debug)]
-pub enum LoopCommand {
+pub enum Command {
+    StartListening {
+        addr: Multiaddr,
+        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
+    },
     Dial {
         peer_id: PeerId,
         peer_addr: Multiaddr,
         sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
     },
-    StartProviding {
+    ProvideSegment {
         segment_id: String,
-        sender: oneshot::Sender<()>,
-    },
-    StopProviding {
-        segment_id: String,
-        sender: oneshot::Sender<()>,
-    },
-    GetProviders {
-        segment_id: String,
-        sender: oneshot::Sender<HashSet<PeerId>>,
+        data: Vec<u8>,
     },
     RequestSegment {
         segment_id: String,
-        peer: PeerId,
-        sender: oneshot::Sender<Result<Option<Vec<u8>>, Box<dyn Error + Send>>>,
-    },
-    RespondSegment {
-        segment_data: Option<Vec<u8>>,
-        channel: ResponseChannel<SegmentResponse>,
-    },
-}
-
-#[derive(Debug)]
-pub enum LoopEvent {
-    SegmentRequest {
-        segment_id: String,
-        channel: ResponseChannel<SegmentResponse>,
+        sender: oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>,
     },
 }

@@ -6,20 +6,21 @@ use libp2p::{
     },
     identity::{self, PeerId},
     multiaddr::Multiaddr,
+    rendezvous::Namespace,
     request_response::ResponseChannel,
     SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use std::{collections::HashSet, error::Error, time::Duration};
+use std::{collections::HashSet, error::Error, num::NonZeroU8, time::Duration};
 
 use super::{
     behaviour::{ComposedSwarmBehaviour, SegmentResponse},
-    event_loop::{EventLoop, LoopCommand, LoopEvent},
+    event_loop::{Command, EventLoop},
 };
 
-pub async fn new(
-    secret_key_seed: Option<u8>,
-) -> Result<(Client, impl Stream<Item = LoopEvent>), Box<dyn Error>> {
+pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Client, Box<dyn Error>> {
+    let namespace = Namespace::new(stream_id)?;
+
     // Create a public/private key pair, either random or based on a seed.
     let keypair = match secret_key_seed {
         Some(seed) => {
@@ -43,24 +44,21 @@ pub async fn new(
         .with_swarm_config(|c| {
             c.with_max_negotiating_inbound_streams(32)
                 .with_idle_connection_timeout(Duration::from_secs(0))
-                .with_dial_concurrency_factor(5.try_into().unwrap())
+                .with_dial_concurrency_factor(NonZeroU8::new(5).unwrap())
         })
         .build();
 
-    let (command_sender, command_receiver) = mpsc::channel(20);
-    let (event_sender, event_receiver) = mpsc::channel(20);
+    let (command_send, command_recv) = mpsc::channel(20);
 
     wasm_bindgen_futures::spawn_local(async move {
-        EventLoop::new(swarm, command_receiver, event_sender)
-            .run()
-            .await;
+        EventLoop::new(namespace, swarm, command_recv).run().await;
     });
 
-    Ok((Client(command_sender), event_receiver))
+    Ok(Client(command_send))
 }
 
 #[derive(Clone)]
-pub struct Client(mpsc::Sender<LoopCommand>);
+pub struct Client(mpsc::Sender<Command>);
 
 impl Client {
     /// Dial the given peer at the given address.
@@ -71,7 +69,7 @@ impl Client {
     ) -> Result<(), Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
         self.0
-            .send(LoopCommand::Dial {
+            .send(Command::Dial {
                 peer_id,
                 peer_addr,
                 sender,
@@ -82,55 +80,23 @@ impl Client {
     }
 
     /// Advertise the local node as the provider of the given file on the DHT.
-    pub async fn start_providing(&mut self, segment_id: String) {
-        let (sender, receiver) = oneshot::channel();
+    pub async fn start_providing(&mut self, segment_id: String, data: Vec<u8>) {
         self.0
-            .send(LoopCommand::StartProviding { segment_id, sender })
+            .send(Command::ProvideSegment { segment_id, data })
             .await
             .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not to be dropped.");
-    }
-
-    /// Find the providers for the given file on the DHT.
-    pub async fn get_providers(&mut self, segment_id: String) -> HashSet<PeerId> {
-        let (sender, receiver) = oneshot::channel();
-        self.0
-            .send(LoopCommand::GetProviders { segment_id, sender })
-            .await
-            .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not to be dropped.")
     }
 
     /// Request the content of the given file from the given peer.
     pub async fn request_segment(
         &mut self,
-        peer: PeerId,
         segment_id: String,
-    ) -> Result<Option<Vec<u8>>, Box<dyn Error + Send>> {
+    ) -> Result<Vec<u8>, Box<dyn Error + Send>> {
         let (sender, receiver) = oneshot::channel();
         self.0
-            .send(LoopCommand::RequestSegment {
-                segment_id,
-                peer,
-                sender,
-            })
+            .send(Command::RequestSegment { segment_id, sender })
             .await
             .expect("Command receiver not to be dropped.");
         receiver.await.expect("Sender not to be dropped.")
-    }
-
-    /// Respond with the provided file content to the given request.
-    pub async fn respond_segment(
-        &mut self,
-        file: Option<Vec<u8>>,
-        channel: ResponseChannel<SegmentResponse>,
-    ) {
-        self.0
-            .send(LoopCommand::RespondSegment {
-                segment_data: file,
-                channel,
-            })
-            .await
-            .expect("Command receiver not to be dropped.");
     }
 }
