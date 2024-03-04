@@ -1,3 +1,5 @@
+use futures::channel::{mpsc::SendError, oneshot::Canceled};
+use js_sys::{ArrayBuffer, Uint8Array, JSON::parse};
 use libp2p::{
     futures::{
         channel::{mpsc, oneshot},
@@ -5,18 +7,21 @@ use libp2p::{
     },
     identity::{self, PeerId},
     multiaddr::{Multiaddr, Protocol},
-    rendezvous::Namespace,
-    SwarmBuilder,
+    rendezvous::{Namespace, NamespaceTooLong},
+    swarm::DialError,
+    SwarmBuilder, TransportError,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use std::{error::Error, num::NonZeroU8, time::Duration};
+use std::{error::Error, io, num::NonZeroU8, str::FromStr, time::Duration};
+use wasm_bindgen::prelude::*;
 
 use super::{
     behaviour::ComposedSwarmBehaviour,
-    event_loop::{Command, EventLoop},
+    event_loop::{Command, EventLoop, RequestError},
 };
 
-pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Client, Box<dyn Error>> {
+#[wasm_bindgen]
+pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Client, ClientError> {
     let namespace = Namespace::new(stream_id)?;
 
     // Create a public/private key pair, either random or based on a seed.
@@ -35,8 +40,10 @@ pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Clien
     // higher layer network behaviour logic.
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_wasm_bindgen()
-        .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
-        .with_behaviour(|key| ComposedSwarmBehaviour::from(key))?
+        .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))
+        .map_err(|_| ClientError::ConfigError)?
+        .with_behaviour(|key| ComposedSwarmBehaviour::from(key))
+        .map_err(|_| ClientError::ConfigError)?
         .with_swarm_config(|c| {
             c.with_max_negotiating_inbound_streams(32)
                 .with_idle_connection_timeout(Duration::from_secs(60))
@@ -46,7 +53,7 @@ pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Clien
 
     // Listen for inbound connections
     let addr = Multiaddr::empty().with(Protocol::WebRTCDirect);
-    swarm.listen_on(addr)?;
+    swarm.listen_on(addr).map_err(|e| ClientError::ListenError);
 
     let (command_send, command_recv) = mpsc::channel(20);
 
@@ -58,15 +65,15 @@ pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Clien
 }
 
 #[derive(Clone)]
+#[wasm_bindgen]
 pub struct Client(mpsc::Sender<Command>);
 
+#[wasm_bindgen]
 impl Client {
     /// Dial the given peer at the given address.
-    pub async fn dial(
-        &mut self,
-        peer_id: PeerId,
-        peer_addr: Multiaddr,
-    ) -> Result<(), Box<dyn Error + Send>> {
+    pub async fn dial(&mut self, peer_id: String, peer_addr: String) -> Result<(), ClientError> {
+        let peer_id = PeerId::from_str(peer_id.as_str()).unwrap();
+        let peer_addr = Multiaddr::from_str(peer_addr.as_str()).unwrap();
         let (sender, receiver) = oneshot::channel();
         self.0
             .send(Command::Dial {
@@ -74,29 +81,88 @@ impl Client {
                 peer_addr,
                 sender,
             })
-            .await
-            .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not to be dropped.")
+            .await?;
+        receiver.await?
     }
 
     /// Advertise the local node as the provider of the given file on the DHT.
-    pub async fn start_providing(&mut self, segment_id: String, data: Vec<u8>) {
-        self.0
+    pub async fn send_segment(
+        &mut self,
+        segment_id: String,
+        segment: Uint8Array,
+    ) -> Result<(), ClientError> {
+        let data = segment.to_vec();
+        let res = self
+            .0
             .send(Command::ProvideSegment { segment_id, data })
-            .await
-            .expect("Command receiver not to be dropped.");
+            .await?;
+
+        Ok(res)
     }
 
     /// Request the content of the given file from the given peer.
-    pub async fn request_segment(
-        &mut self,
-        segment_id: String,
-    ) -> Result<Vec<u8>, Box<dyn Error + Send>> {
+    pub async fn request_segment(&mut self, segment_id: String) -> Result<Uint8Array, ClientError> {
         let (sender, receiver) = oneshot::channel();
         self.0
             .send(Command::RequestSegment { segment_id, sender })
-            .await
-            .expect("Command receiver not to be dropped.");
-        receiver.await.expect("Sender not to be dropped.")
+            .await?;
+
+        let segment = receiver.await??;
+        let buf = Uint8Array::from(segment.as_slice());
+
+        Ok(buf)
+    }
+}
+
+#[derive(Debug)]
+pub enum ClientError {
+    ConfigError,
+    ListenError,
+    BadNamespace,
+    DialError,
+    ConnectionClosed,
+    RequestError(RequestError),
+}
+
+impl Into<wasm_bindgen::JsValue> for ClientError {
+    fn into(self) -> wasm_bindgen::JsValue {
+        match self {
+            Self::ConfigError => 3.into(),
+            Self::BadNamespace => 0.into(),
+            Self::ListenError => 4.into(),
+            Self::DialError => 5.into(),
+            Self::ConnectionClosed => 1.into(),
+            Self::RequestError(_) => 2.into(),
+        }
+    }
+}
+
+impl From<NamespaceTooLong> for ClientError {
+    fn from(value: NamespaceTooLong) -> Self {
+        ClientError::BadNamespace
+    }
+}
+
+impl From<SendError> for ClientError {
+    fn from(_: SendError) -> Self {
+        ClientError::ConnectionClosed
+    }
+}
+
+impl From<Canceled> for ClientError {
+    fn from(_: Canceled) -> Self {
+        ClientError::ConnectionClosed
+    }
+}
+
+impl From<RequestError> for ClientError {
+    fn from(err: RequestError) -> Self {
+        ClientError::RequestError(err)
+    }
+}
+
+impl From<DialError> for ClientError {
+    fn from(value: DialError) -> Self {
+        ClientError::DialError
     }
 }
