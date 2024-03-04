@@ -8,7 +8,6 @@ use libp2p::{
     rendezvous::client as rendezvous,
     swarm::NetworkBehaviour,
 };
-use serde::{Deserialize, Serialize};
 
 #[derive(NetworkBehaviour)]
 #[behaviour(to_swarm = "ComposedSwarmEvent")]
@@ -69,11 +68,3 @@ impl From<gossipsub::Event> for ComposedSwarmEvent {
         ComposedSwarmEvent::Gossipsub(event)
     }
 }
-
-// Request segment id
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SegmentRequest(pub String);
-
-// Response segment data
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SegmentResponse(pub Option<Vec<u8>>);

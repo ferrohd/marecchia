@@ -1,5 +1,5 @@
 use futures::channel::{mpsc::SendError, oneshot::Canceled};
-use js_sys::{ArrayBuffer, Uint8Array, JSON::parse};
+use js_sys::Uint8Array;
 use libp2p::{
     futures::{
         channel::{mpsc, oneshot},
@@ -9,10 +9,10 @@ use libp2p::{
     multiaddr::{Multiaddr, Protocol},
     rendezvous::{Namespace, NamespaceTooLong},
     swarm::DialError,
-    SwarmBuilder, TransportError,
+    SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use std::{error::Error, io, num::NonZeroU8, str::FromStr, time::Duration};
+use std::{num::NonZeroU8, str::FromStr, time::Duration};
 use wasm_bindgen::prelude::*;
 
 use super::{
@@ -21,7 +21,9 @@ use super::{
 };
 
 #[wasm_bindgen]
-pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Client, ClientError> {
+pub async fn new_p2p_client(stream_id: String, secret_key_seed: Option<u8>) -> Result<P2PClient, ClientError> {
+    tracing_wasm::set_as_global_default();
+
     let namespace = Namespace::new(stream_id)?;
 
     // Create a public/private key pair, either random or based on a seed.
@@ -61,15 +63,15 @@ pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Clien
         EventLoop::new(namespace, swarm, command_recv).run().await;
     });
 
-    Ok(Client(command_send))
+    Ok(P2PClient(command_send))
 }
 
 #[derive(Clone)]
 #[wasm_bindgen]
-pub struct Client(mpsc::Sender<Command>);
+pub struct P2PClient(mpsc::Sender<Command>);
 
 #[wasm_bindgen]
-impl Client {
+impl P2PClient {
     /// Dial the given peer at the given address.
     pub async fn dial(&mut self, peer_id: String, peer_addr: String) -> Result<(), ClientError> {
         let peer_id = PeerId::from_str(peer_id.as_str()).unwrap();
