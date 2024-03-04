@@ -23,8 +23,8 @@ impl From<&Keypair> for ComposedSwarmBehaviour {
         let peer_id = keypair.public().to_peer_id();
         // Define the various behaviours of the swarm.
         let ping_config = ping::Config::new()
-            .with_timeout(Duration::from_secs(10))
-            .with_interval(Duration::from_secs(5));
+        .with_interval(Duration::from_secs(5))
+        .with_timeout(Duration::from_secs(10));
         let ping = ping::Behaviour::new(ping_config);
 
         let autonat_config = autonat::Config::default();

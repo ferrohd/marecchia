@@ -4,7 +4,7 @@ use libp2p::{
         SinkExt,
     },
     identity::{self, PeerId},
-    multiaddr::Multiaddr,
+    multiaddr::{Multiaddr, Protocol},
     rendezvous::Namespace,
     SwarmBuilder,
 };
@@ -33,16 +33,20 @@ pub async fn new(stream_id: String, secret_key_seed: Option<u8>) -> Result<Clien
 
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
-    let swarm = SwarmBuilder::with_existing_identity(keypair)
+    let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_wasm_bindgen()
         .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
         .with_behaviour(|key| ComposedSwarmBehaviour::from(key))?
         .with_swarm_config(|c| {
             c.with_max_negotiating_inbound_streams(32)
-                .with_idle_connection_timeout(Duration::from_secs(0))
+                .with_idle_connection_timeout(Duration::from_secs(60))
                 .with_dial_concurrency_factor(NonZeroU8::new(5).unwrap())
         })
         .build();
+
+    // Listen for inbound connections
+    let addr = Multiaddr::empty().with(Protocol::WebRTCDirect);
+    swarm.listen_on(addr)?;
 
     let (command_send, command_recv) = mpsc::channel(20);
 
