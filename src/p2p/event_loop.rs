@@ -3,23 +3,25 @@ use libp2p::futures::{
     channel::{mpsc, oneshot},
     prelude::*,
 };
-use libp2p::gossipsub::{self, IdentTopic};
+use libp2p::gossipsub::{self, IdentTopic, SubscriptionError};
 use libp2p::multiaddr::Protocol;
 use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace};
 use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{ping, PeerId};
-use std::collections::{hash_map, HashMap};
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 
+use wasm_bindgen::prelude::*;
+
 use super::behaviour::*;
+use super::client::ClientError;
 
 pub struct EventLoop {
     namespace: Namespace,
     cookie: Cookie,
     swarm: Swarm<ComposedSwarmBehaviour>,
     command_receiver: mpsc::Receiver<Command>,
-    pending_dial: HashMap<PeerId, oneshot::Sender<Result<(), Box<dyn Error + Send>>>>,
-    segment_request: HashMap<String, oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>>,
+    segment_request: SegmentRequestCache,
 }
 
 impl EventLoop {
@@ -33,8 +35,7 @@ impl EventLoop {
             namespace,
             swarm,
             command_receiver,
-            pending_dial: Default::default(),
-            segment_request: Default::default(),
+            segment_request: SegmentRequestCache::new(10),
         }
     }
 
@@ -91,12 +92,11 @@ impl EventLoop {
                 peer_id, endpoint, ..
             } => {
                 // A new connection has been established. (Either incoming or outgoing)
-                tracing::info!("Connection established with peer {:?}", peer_id);
-                if endpoint.is_dialer() {
-                    if let Some(sender) = self.pending_dial.remove(&peer_id) {
-                        let _ = sender.send(Ok(()));
-                    }
-                }
+                tracing::info!(
+                    "Connection established with peer {:?} as {:?}",
+                    peer_id,
+                    endpoint.to_endpoint()
+                );
             }
             SwarmEvent::ConnectionClosed {
                 connection_id,
@@ -121,11 +121,6 @@ impl EventLoop {
                     peer_id,
                     error
                 );
-                if let Some(peer_id) = peer_id {
-                    if let Some(sender) = self.pending_dial.remove(&peer_id) {
-                        let _ = sender.send(Err(Box::new(error)));
-                    }
-                }
             }
             SwarmEvent::IncomingConnectionError {
                 connection_id,
@@ -304,6 +299,10 @@ impl EventLoop {
                     propagation_source,
                     message.topic.as_str()
                 );
+                if let Some(sender) = self.segment_request.remove(message.topic.as_str())
+                {
+                    let _ = sender.send(Ok(message.data));
+                }
             }
             gossipsub::Event::Subscribed { peer_id, topic } => {
                 // A remote subscribed to a new topic.
@@ -330,28 +329,20 @@ impl EventLoop {
 
     async fn handle_command(&mut self, command: Command) {
         match command {
-            Command::StartListening { addr, sender } => match self.swarm.listen_on(addr) {
-                Ok(_) => {
-                    let _ = sender.send(Ok(()));
-                }
-                Err(e) => {
-                    let _ = sender.send(Err(Box::new(e)));
-                }
-            },
             Command::Dial {
                 peer_id,
                 peer_addr,
                 sender,
             } => {
-                // If not already dialing, dial the peer.
-                if let hash_map::Entry::Vacant(e) = self.pending_dial.entry(peer_id) {
-                    match self.swarm.dial(peer_addr.with(Protocol::P2p(peer_id))) {
-                        Ok(()) => {
-                            e.insert(sender);
-                        }
-                        Err(e) => {
-                            let _ = sender.send(Err(Box::new(e)));
-                        }
+                tracing::info!("Dialing peer {:?} with addr {:?}", peer_id, peer_addr);
+                match self.swarm.dial(peer_addr.with(Protocol::P2p(peer_id))) {
+                    Ok(_) => {
+                        tracing::info!("Successfuclly dialed peer {:?}", peer_id);
+                        let _ = sender.send(Ok(()));
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to dial peer {:?} with error {:?}", peer_id, e);
+                        let _ = sender.send(Err(e.into()));
                     }
                 }
             }
@@ -376,9 +367,22 @@ impl EventLoop {
                 }
             }
             Command::RequestSegment { segment_id, sender } => {
+                let segment_id_clone = segment_id.clone();
                 let topic = IdentTopic::new(segment_id);
-                let _ = self.swarm.behaviour_mut().pubsub.subscribe(&topic);
-                self.segment_request.insert(topic.to_string(), sender);
+                match self.swarm.behaviour_mut().pubsub.subscribe(&topic) {
+                    Ok(_) => {
+                        tracing::info!("Subscribed to topic {:?}", topic);
+                        self.segment_request.insert(segment_id_clone, sender);
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to subscribe to topic {:?} with error {:?}",
+                            topic,
+                            e
+                        );
+                        let _ = sender.send(Err(e.into()));
+                    }
+                }
             }
         }
     }
@@ -386,14 +390,10 @@ impl EventLoop {
 
 #[derive(Debug)]
 pub enum Command {
-    StartListening {
-        addr: Multiaddr,
-        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
-    },
     Dial {
         peer_id: PeerId,
         peer_addr: Multiaddr,
-        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
+        sender: oneshot::Sender<Result<(), ClientError>>,
     },
     ProvideSegment {
         segment_id: String,
@@ -401,6 +401,58 @@ pub enum Command {
     },
     RequestSegment {
         segment_id: String,
-        sender: oneshot::Sender<Result<Vec<u8>, Box<dyn Error + Send>>>,
+        sender: oneshot::Sender<Result<Vec<u8>, RequestError>>,
     },
+}
+
+#[derive(Debug)]
+pub enum RequestError {
+    Timeout,
+    SubscribeError(SubscriptionError),
+}
+
+impl From<SubscriptionError> for RequestError {
+    fn from(error: SubscriptionError) -> Self {
+        RequestError::SubscribeError(error)
+    }
+}
+
+pub struct SegmentRequestCache {
+    requests: HashMap<String, oneshot::Sender<Result<Vec<u8>, RequestError>>>,
+    order: VecDeque<String>,
+    capacity: usize,
+}
+
+impl SegmentRequestCache {
+    pub fn new(capacity: usize) -> Self {
+        SegmentRequestCache {
+            requests: HashMap::new(),
+            order: VecDeque::new(),
+            capacity,
+        }
+    }
+
+    pub fn insert(&mut self, key: String, value: oneshot::Sender<Result<Vec<u8>, RequestError>>) {
+        // Perform the insertion
+        self.requests.insert(key.clone(), value);
+        self.order.push_back(key.clone());
+
+        // Check for capacity overflow and remove the oldest item if necessary
+        if self.order.len() > self.capacity {
+            if let Some(oldest_key) = self.order.pop_front() {
+                if let Some(channel) = self.requests.remove(&oldest_key) {
+                    // The channel has been popped, return the Timeout Erro
+                    let _ = channel.send(Err(RequestError::Timeout));
+                }
+            }
+        }
+    }
+
+    pub fn remove(&mut self, key: &str) -> Option<oneshot::Sender<Result<Vec<u8>, RequestError>>> {
+        if let Some(sender) = self.requests.remove(key) {
+            self.order.retain(|k| k != key); // Remove the key from the order tracking
+            return Some(sender);
+        }
+        None
+    }
 }
