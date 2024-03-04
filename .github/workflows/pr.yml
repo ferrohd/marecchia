@@ -1,0 +1,94 @@
+name: PR Cargo Checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+    toolchain:
+        name: ⚒️ Toolchain
+        runs-on: ubuntu-latest
+        steps:
+          - name: ⚒️ Toolchain Info
+            run: |
+              cargo --version --verbose
+              rustc --version
+              cargo clippy --version
+
+    clippy:
+        name: 📎 Clippy
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: ⚡ Cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/bin/
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target
+                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+            - name: 📎 Clippy
+              run: |
+                cargo clippy --
+
+    build:
+        name: 🔨 Build
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: ⚡ Cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/bin/
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target
+                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+            - name: Install WASM Target 🎯
+              run: |
+                rustup target add wasm32-unknown-unknown
+
+            - name: 🔨 Build
+              run: |
+                cargo build
+
+    test:
+        name: 🧪 Test
+        needs: toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: ⚡ Cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/bin/
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target
+                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+            - name: 🧪 Test
+              run: |
+                cargo test --all
