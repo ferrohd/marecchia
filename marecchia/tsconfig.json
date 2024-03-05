@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "NodeNext",
+        "lib": [
+            "ESNext",
+            "DOM"
+        ],
+        "strict": true,
+        "declaration": true,
+        "outDir": "dist",
+        // disable sourceMap for production
+        "sourceMap": true,
+        "forceConsistentCasingInFileNames": true,
+        "noImplicitAny": true,
+        "moduleResolution": "NodeNext",
+    },
+    "exclude": [
+        "node_modules",
+        "dist",
+        "test"
+    ],
+    "include": [
+        "src/**/*.ts",
+    ]
+}

@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [ "marecchia-backend", "marecchia-p2p"]
+
+[workspace.package]
+license = "GNU General Public License v3.0"
+authors = ["ferrohd"]
+edition = "2021"
+repository = "https://github.com/ferrohd/marecchia/"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+
+[profile.release.package.marecchia-p2p]
+strip = true

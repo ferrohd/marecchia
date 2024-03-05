@@ -1,0 +1,14 @@
+[package]
+name = "marecchia-backend"
+version = "0.1.0"
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[lints]
+workspace = true
