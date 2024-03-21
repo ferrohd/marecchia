@@ -21,7 +21,10 @@ use super::{
 };
 
 #[wasm_bindgen]
-pub async fn new_p2p_client(stream_id: String, secret_key_seed: Option<u8>) -> Result<P2PClient, ClientError> {
+pub fn new_p2p_client(
+    stream_id: String,
+    secret_key_seed: Option<u8>,
+) -> Result<P2PClient, ClientError> {
     tracing_wasm::set_as_global_default();
 
     let namespace = Namespace::new(stream_id)?;
@@ -113,6 +116,11 @@ impl P2PClient {
         let buf = Uint8Array::from(segment.as_slice());
 
         Ok(buf)
+    }
+
+    pub async fn quit(&mut self) -> Result<(), ClientError> {
+        self.0.send(Command::Quit).await?;
+        Ok(())
     }
 }
 

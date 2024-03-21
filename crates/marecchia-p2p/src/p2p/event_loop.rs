@@ -9,9 +9,6 @@ use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace};
 use libp2p::swarm::{Swarm, SwarmEvent};
 use libp2p::{ping, PeerId};
 use std::collections::{HashMap, VecDeque};
-use std::error::Error;
-
-use wasm_bindgen::prelude::*;
 
 use super::behaviour::*;
 use super::client::ClientError;
@@ -384,6 +381,10 @@ impl EventLoop {
                     }
                 }
             }
+            Command::Quit => {
+                tracing::info!("Shutting down the network event loop");
+                return;
+            }
         }
     }
 }
@@ -403,6 +404,7 @@ pub enum Command {
         segment_id: String,
         sender: oneshot::Sender<Result<Vec<u8>, RequestError>>,
     },
+    Quit
 }
 
 #[derive(Debug)]
