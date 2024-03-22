@@ -81,7 +81,7 @@ jobs:
             - name: 🔨 Build
               working-directory: crates/marecchia-p2p
               run: |
-                wasm-pack rs-build --target bundler
+                wasm-pack build --target bundler
 
             - name: 💾 Save Artifact
               uses: actions/upload-artifact@v4
