@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [ "marecchia-backend", "marecchia-p2p"]
+members = [ "marecchia-tracker", "marecchia-p2p"]
 
 [workspace.package]
 license = "GNU General Public License v3.0"

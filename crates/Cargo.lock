@@ -2561,16 +2561,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "marecchia-backend"
-version = "0.1.0"
-dependencies = [
- "libp2p",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "marecchia-p2p"
 version = "0.1.0"
 dependencies = [
@@ -2586,6 +2576,16 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "marecchia-tracker"
+version = "0.1.0"
+dependencies = [
+ "libp2p",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
