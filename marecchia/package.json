@@ -4,6 +4,7 @@
   "description": "",
   "module": "dist/marecchia.bundle.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "pack": "rollup -c",
@@ -11,6 +12,9 @@
   },
   "author": "Alessandro Ferrara",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",

@@ -4,7 +4,7 @@ import terser from '@rollup/plugin-terser';
 import wasm from '@rollup/plugin-wasm';
 
 export default {
-    input: ['./src/index.ts', "../crates/marecchia-p2p/pkg/marecchia_p2p_bg.wasm"],
+    input: ['./src/index.ts'],
     output: [
         {
             dir: 'dist',
@@ -14,8 +14,9 @@ export default {
     ],
     plugins: [
         typescript({ tsconfig: './tsconfig.json' }), // Ensure you reference your TS config
-        resolve({ browser: true, extensions: ['.js', '.ts', '.wasm'] }),
+        resolve({ browser: true, extensions: ['.js', '.ts', '.wasm'], resolveOnly: [/^@marecchia\/.*/]}),
         wasm({
+            // browser or auto-inline?
             targetEnv: "browser",
             sync: [
                 '../crates/marecchia-p2p/pkg/marecchia_bg.wasm'

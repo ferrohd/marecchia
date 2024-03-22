@@ -1,8 +1,5 @@
 import Hls, { FragmentLoaderContext, HlsConfig, LoadStats, Loader, LoaderCallbacks, LoaderConfiguration, LoaderContext, LoaderStats } from "hls.js";
-import { initSync, new_p2p_client, P2PClient } from "@marecchia-p2p/marecchia_p2p";
-import wasm from "@marecchia-p2p/marecchia_p2p_bg.wasm";
-
-initSync(wasm);
+import { new_p2p_client, P2PClient } from "../../crates/marecchia-p2p/pkg/marecchia_p2p.js";
 
 export class P2PFragmentLoader implements Loader<FragmentLoaderContext> {
     private p2pNetwork: P2PClient;
@@ -12,7 +9,7 @@ export class P2PFragmentLoader implements Loader<FragmentLoaderContext> {
 
     constructor(stream_id: string, confg: HlsConfig) {
         this.p2pNetwork = new_p2p_client(stream_id);
-        this.httpLoader = new Hls.DefaultConfig.loader(confg).load;
+        this.httpLoader = new Hls.default.DefaultConfig.loader(confg).load;
         this.stats = new LoadStats();
         this.context = null;
     }
