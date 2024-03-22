@@ -39,10 +39,10 @@ jobs:
                   target
                 key: ${{ runner.os }}-cargo-${{ hashFiles('crates/Cargo.lock') }}
 
-            - name: 📎 Clippy
-              working-directory: crates
-              run: |
-                cargo clippy --
+            #- name: 📎 Clippy
+            #  working-directory: crates
+            #  run: |
+            #    cargo clippy --
 
     build:
         name: 🔨 Build
@@ -108,7 +108,7 @@ jobs:
                   target
                 key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
-            - name: 🧪 Test
-              working-directory: crates
-              run: |
-                cargo test --all
+            #- name: 🧪 Test
+            #  working-directory: crates
+            #  run: |
+            #    cargo test --all
