@@ -18,7 +18,7 @@ jobs:
             run: |
               cargo --version --verbose
               rustc --version
-              cargo rs-clippy --version
+              cargo clippy --version
 
     rs-clippy:
         name: 📎 Clippy
