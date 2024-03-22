@@ -1,4 +1,4 @@
-name: PR Cargo Checks
+name: Rust CI
 
 on:
   push:
@@ -37,9 +37,10 @@ jobs:
                   ~/.cargo/registry/cache/
                   ~/.cargo/git/db/
                   target
-                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+                key: ${{ runner.os }}-cargo-${{ hashFiles('crates/Cargo.lock') }}
 
             - name: 📎 Clippy
+              working-directory: crates
               run: |
                 cargo clippy --
 
@@ -62,13 +63,31 @@ jobs:
                   target
                 key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                node-version: '20'
+
+            - name: Install wasm-pack 📦
+              working-directory: crates
+              run: |
+                npm install -g wasm-pack
+
             - name: Install WASM Target 🎯
+              working-directory: crates
               run: |
                 rustup target add wasm32-unknown-unknown
 
             - name: 🔨 Build
+              working-directory: crates
               run: |
-                cargo build
+                wasm-pack build --target bundler
+
+            - name: 💾 Save wasm-pack pkg as Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: marecchia-p2p
+                path: ./crates/marecchia-p2p/pkg
 
     test:
         name: 🧪 Test
@@ -90,5 +109,6 @@ jobs:
                 key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
             - name: 🧪 Test
+              working-directory: crates
               run: |
                 cargo test --all

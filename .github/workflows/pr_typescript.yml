@@ -1,0 +1,39 @@
+name: TypeScript CI
+
+on:
+  workflow_run:
+    workflows: ["Rust CI"]
+    branches: [master]
+    types:
+      - completed
+
+jobs:
+  npm-build:
+    # Ensure TypeScript build only runs if the Rust workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Download wasm-pkg from Rust workflow
+      uses: actions/download-artifact@v4
+      with:
+        name: marecchia-p2p
+        path: ./crates/marecchia-p2p/pkg
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      working-directory: ./marecchia
+      run: npm install
+
+    - name: Build TypeScript project
+      working-directory: ./marecchia
+      run: npm run pack
+
+    - uses: geekyeggo/delete-artifact@v5
+      with:
+          name: marecchia-p2p
