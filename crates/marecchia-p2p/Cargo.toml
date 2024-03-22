@@ -11,8 +11,8 @@ repository.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-async-trait = "^0.1"
-libp2p = { version = "^0.53", features = [
+async-trait = "^0.1.78"
+libp2p = { version = "^0.53.2", features = [
     "wasm-bindgen",
     "gossipsub",
     "ping",
@@ -29,17 +29,17 @@ libp2p = { version = "^0.53", features = [
     "ed25519"
 ] }
 libp2p-webrtc-websys = "0.3.0-alpha"
-wasm-bindgen = "^0.2"
-wasm-bindgen-futures = "^0.4"
+wasm-bindgen = "^0.2.92"
+wasm-bindgen-futures = "^0.4.42"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
-js-sys = "^0.3"
+js-sys = "^0.3.69"
 m3u8-rs = "^6.0"
-tracing = "0.1.37"
+tracing = "0.1.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-wasm = "0.2.1"
 
 [dependencies.web-sys]
-version = "^0.3"
+version = "^0.3.69"
 features = [
     "Window",
     "console",
