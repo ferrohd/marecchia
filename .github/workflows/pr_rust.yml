@@ -63,23 +63,23 @@ jobs:
                   target
                 key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
-            - name: Setup Node.js
+            - name: 🪛 Setup Node.js
               uses: actions/setup-node@v4
               with:
                 node-version: '20'
 
-            - name: Install wasm-pack 📦
+            - name: 📦 Install wasm-pack
               working-directory: crates
               run: |
                 npm install -g wasm-pack
 
-            - name: Install WASM Target 🎯
+            - name: 🎯 Install WASM Target
               working-directory: crates
               run: |
                 rustup target add wasm32-unknown-unknown
 
             - name: 🔨 Build
-              working-directory: crates
+              working-directory: crates/marecchia-p2p
               run: |
                 wasm-pack build --target bundler
 
