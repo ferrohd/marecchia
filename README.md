@@ -1,11 +1,14 @@
-# Marecchia: P2P Streaming with WebAssembly
+# Marecchia: P2P Streaming on the Web
+
+**Note:**
+This project is still a work in progress and is not yet ready for production use. Please check back later for updates.
 
 Welcome to the Marecchia project repository! Marecchia is a revolutionary solution designed to enable peer-to-peer (P2P) streaming directly in your web browser, leveraging the power of WebAssembly (Wasm) for efficient video content distribution among viewers. This project also features a backend "tracker" system, essential for facilitating the discovery and interconnection of peers for optimized P2P content sharing.
 
 ## Features
 
 - **WebAssembly Library:** A cutting-edge Wasm library specifically crafted to work in tandem with your browser's video player element. It empowers the video player to engage in a P2P network, streaming video content from viewer to viewer, which significantly reduces the dependency on server bandwidth.
-  
+
 - **Tracker Binary:** A dedicated backend service that serves as a crucial meeting point for peers. This tracker enables viewers to find each other, creating a web of connections that ensure the most efficient paths for data transfer are utilized, making the streaming process smoother and faster.
 
 ## Getting Started
