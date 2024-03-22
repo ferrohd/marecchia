@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-    toolchain:
+    rs-toolchain:
         name: ⚒️ Toolchain
         runs-on: ubuntu-latest
         steps:
@@ -18,11 +18,11 @@ jobs:
             run: |
               cargo --version --verbose
               rustc --version
-              cargo clippy --version
+              cargo rs-clippy --version
 
-    clippy:
+    rs-clippy:
         name: 📎 Clippy
-        needs: toolchain
+        needs: rs-toolchain
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
@@ -42,11 +42,11 @@ jobs:
             #- name: 📎 Clippy
             #  working-directory: crates
             #  run: |
-            #    cargo clippy --
+            #    cargo rs-clippy --
 
-    build:
-        name: 🔨 Build
-        needs: toolchain
+    rs-build:
+        name: 🔨 Build Rust
+        needs: rs-toolchain
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
@@ -81,17 +81,17 @@ jobs:
             - name: 🔨 Build
               working-directory: crates/marecchia-p2p
               run: |
-                wasm-pack build --target bundler
+                wasm-pack rs-build --target bundler
 
-            - name: 💾 Save wasm-pack pkg as Artifact
+            - name: 💾 Save Artifact
               uses: actions/upload-artifact@v4
               with:
                 name: marecchia-p2p
                 path: ./crates/marecchia-p2p/pkg
 
-    test:
+    rs-test:
         name: 🧪 Test
-        needs: toolchain
+        needs: rs-toolchain
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
@@ -111,4 +111,38 @@ jobs:
             #- name: 🧪 Test
             #  working-directory: crates
             #  run: |
-            #    cargo test --all
+            #    cargo rs-test --all
+
+    ts-build:
+        name: 🛠️ Build Typescript
+        runs-on: ubuntu-latest
+        needs: rs-build
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: 🪛 Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                node-version: '20'
+
+            - name: Get WASM Artifact
+              uses: actions/download-artifact@v4
+              with:
+                name: marecchia-p2p
+                path: ./crates/marecchia-p2p/pkg
+
+            - name: 📦 Install Dependencies
+              working-directory: ./marecchia
+              run: |
+                npm install
+
+            - name: 🛠️ Build
+              working-directory: ./marecchia
+              run: |
+                npm run pack
+
+            - name: 🗑️ Delete Artifact
+              uses: geekyeggo/delete-artifact@v5
+              with:
+                  name: marecchia-p2p
