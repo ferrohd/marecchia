@@ -1,17 +1,17 @@
 import Hls, { FragmentLoaderContext, HlsConfig, LoadStats, Loader, LoaderCallbacks, LoaderConfiguration, LoaderContext, LoaderStats } from "hls.js";
-import { P2PLoader as P2PNetwork } from "./p2p/P2PLoader";
-import { LRUMap } from "./fragments_map";
+import { initSync, new_p2p_client, P2PClient } from "@marecchia-p2p/marecchia_p2p";
+import wasm from "@marecchia-p2p/marecchia_p2p_bg.wasm";
+
+initSync(wasm);
 
 export class P2PFragmentLoader implements Loader<FragmentLoaderContext> {
-    private fragments: LRUMap<ArrayBuffer>;
-    private p2pNetwork: P2PNetwork;
+    private p2pNetwork: P2PClient;
     private httpLoader: (context: LoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks<LoaderContext>) => void;
     context: FragmentLoaderContext | null;
     stats: LoaderStats;
 
-    constructor(confg: HlsConfig) {
-        this.fragments = new LRUMap<ArrayBuffer>(10);
-        this.p2pNetwork = new P2PNetwork(this.fragments);
+    constructor(stream_id: string, confg: HlsConfig) {
+        this.p2pNetwork = new_p2p_client(stream_id);
         this.httpLoader = new Hls.DefaultConfig.loader(confg).load;
         this.stats = new LoadStats();
         this.context = null;
@@ -19,36 +19,37 @@ export class P2PFragmentLoader implements Loader<FragmentLoaderContext> {
     load(context: FragmentLoaderContext, config: LoaderConfiguration, callbacks: LoaderCallbacks<FragmentLoaderContext>): void {
         const segmentId = context.frag.sn.toString();
 
-        this.p2pNetwork.get_segment(segmentId)
-        .then((segment) => {
-            callbacks.onSuccess({
-                url: `p2p://${segmentId}`,
-                data: segment,
-            }, this.stats, context, null);
-        })
-        .catch((_) => {
-            // Try to load the segment from the remote server
-            this.httpLoader(context, config, callbacks as LoaderCallbacks<LoaderContext>);
-        });
+        // P2P exchanges only complete segments (no byte range support)
+        context.rangeStart = undefined;
+        context.rangeEnd = undefined;
+
+        this.p2pNetwork.request_segment(segmentId)
+            .then((segment) => {
+                callbacks.onSuccess({
+                    url: `p2p://${segmentId}`,
+                    data: segment,
+                }, this.stats, context, null);
+            })
+            .catch((_) => {
+                // Custom callbacks to upload a new segment once is downloaded from the server
+                const http_callbacks: LoaderCallbacks<FragmentLoaderContext> = {
+                    ...callbacks,
+                    onSuccess: (response, stats, context, networkDetails) => {
+                        if (response.data && response.data instanceof ArrayBuffer) {
+                            let data = new Uint8Array(response.data);
+                            this.p2pNetwork.send_segment(segmentId, data);
+                        }
+                        callbacks.onSuccess(response, stats, context, networkDetails);
+                    }
+                }
+                // Load the segment using the default HTTP loader
+                this.httpLoader(context, config, http_callbacks as LoaderCallbacks<LoaderContext>);
+            });
     }
     destroy(): void {
-        this.fragments.clear();
-        this.p2pNetwork.disconnect();
+        this.p2pNetwork.quit();
     }
     abort(): void {
         this.destroy();
     }
-}
-
-async function connect_to_peer(remote_offer: RTCSessionDescriptionInit, remotePeerId: string) {
-    const config: RTCConfiguration = {
-        iceServers: [
-            {
-                urls: 'stun:stun.l.google.com:19302'
-            }
-        ]
-    };
-    const peer = new RTCPeerConnection(config);
-    const remoteSessionDescription = new RTCSessionDescription(remote_offer);
-    await peer.setRemoteDescription(remoteSessionDescription);
 }

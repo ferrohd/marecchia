@@ -14,9 +14,8 @@
         "forceConsistentCasingInFileNames": true,
         "noImplicitAny": true,
         "moduleResolution": "NodeNext",
-        "allowSyntheticDefaultImports": true,
         "paths": {
-            "@p2p": ["../crates/marecchia-p2p/pkg/marecchia_p2p"],
+            "@marecchia-p2p/*": ["../crates/marecchia-p2p/pkg/*"]
         }
     },
     "exclude": [

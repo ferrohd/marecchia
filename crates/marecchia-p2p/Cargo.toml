@@ -1,5 +1,6 @@
 [package]
 name = "marecchia-p2p"
+description = "A WebRTC-based P2P live streaming library"
 version = "0.1.0"
 license.workspace = true
 authors.workspace = true
@@ -11,7 +12,22 @@ crate-type = ["cdylib"]
 
 [dependencies]
 async-trait = "^0.1"
-libp2p = { version = "^0.53", features = ["full"] }
+libp2p = { version = "^0.53", features = [
+    "wasm-bindgen",
+    "gossipsub",
+    "ping",
+    "identify",
+    "autonat",
+    "noise",
+    "memory-connection-limits",
+    "secp256k1",
+    "rendezvous",
+    "rsa",
+    "metrics",
+    "ecdsa",
+    "macros",
+    "ed25519"
+] }
 libp2p-webrtc-websys = "0.3.0-alpha"
 wasm-bindgen = "^0.2"
 wasm-bindgen-futures = "^0.4"
