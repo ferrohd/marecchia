@@ -1,6 +1,6 @@
 {
   "name": "marecchia",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A WebRTC-based P2P live streaming library on top of hls.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,7 +15,7 @@
     "email": "alessandro2.ferrara@mail.polimi.it",
     "url": "https://alessandro.ferrara.it/"
   },
-  "license": "GPLV3",
+  "license": "AGPL-3.0-only",
   "files": [
     "dist"
   ],
