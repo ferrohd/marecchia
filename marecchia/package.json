@@ -10,8 +10,12 @@
     "pack": "rollup -c",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Alessandro Ferrara",
-  "license": "MIT",
+  "author": {
+    "name": "Alessandro Ferrara",
+    "email": "alessandro2.ferrara@mail.polimi.it",
+    "url": "https://alessandro.ferrara.it/"
+  },
+  "license": "GPLV3",
   "files": [
     "dist"
   ],
