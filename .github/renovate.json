@@ -9,7 +9,7 @@
   "assignees": [
     "ferrohd"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": false,
   "enabled": true,
   "automerge": true,
   "major": {
