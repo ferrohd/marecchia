@@ -1,0 +1,6 @@
+**/pkg
+**/.git
+**/.gitignore
+target
+Dockerfile
+.dockerignore

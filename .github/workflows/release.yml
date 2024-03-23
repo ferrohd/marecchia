@@ -132,4 +132,5 @@ jobs:
             - name: 🔼 Publish to NPM
               uses: JS-DevTools/npm-publish@v3
               with:
+                package: ./marecchia
                 token: ${{ secrets.NPM_TOKEN }}
