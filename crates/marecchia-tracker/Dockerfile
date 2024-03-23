@@ -1,9 +1,8 @@
-FROM rust:alpine as builder
-RUN apk add --no-cache build-base
+FROM rust as builder
 WORKDIR /app
 COPY . .
-RUN cargo build --release -p marecchia-backend
+RUN cargo build --release -p marecchia-tracker
 
-FROM scratch
-COPY --from=builder /app/target/release/marecchia-backend .
+FROM debian:stable-slim
+COPY --from=builder /app/target/release/marecchia-tracker .
 ENTRYPOINT ["./marecchia-backend"]
