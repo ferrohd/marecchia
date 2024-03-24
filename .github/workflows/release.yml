@@ -93,7 +93,6 @@ jobs:
               with:
                 node-version: 'lts/*'
                 registry-url: 'https://registry.npmjs.org'
-                token: ${{ secrets.NPM_TOKEN }}
 
             - name: 🔼 Publish @marecchia/marecchia-core to NPM
               uses: JS-DevTools/npm-publish@v3
@@ -137,7 +136,6 @@ jobs:
               with:
                 node-version: 'lts/*'
                 registry-url: 'https://registry.npmjs.org'
-                token: ${{ secrets.NPM_TOKEN }}
 
             - name: 📦 Install Dependencies
               working-directory: ./marecchia/${{ matrix.packages.path }}
