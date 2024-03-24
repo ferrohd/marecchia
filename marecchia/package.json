@@ -7,10 +7,6 @@
     "packages/hlsjs"
   ],
   "scripts": {
-    "build": "npx lerna run build",
-    "clean": "npx lerna clean",
-    "list": "npx lerna list",
-    "publish": "npx lerna publish"
   },
   "author": {
     "name": "Alessandro Ferrara",
@@ -21,9 +17,7 @@
     "type": "git",
     "url": "https://github.com/ferrohd/marecchia.git"
   },
-  "license": "AGPL-3.0-only",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {},
-  "devDependencies": {
-    "lerna": "^8.1.2"
-  }
+  "devDependencies": {}
 }
