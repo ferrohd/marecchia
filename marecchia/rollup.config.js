@@ -17,11 +17,11 @@ export default {
         resolve({ browser: true, extensions: ['.js', '.ts', '.wasm'], resolveOnly: [/^@marecchia\/.*/]}),
         wasm({
             // browser or auto-inline?
-            targetEnv: "browser",
+            targetEnv: "auto-inline",
             sync: [
                 '../crates/marecchia-p2p/pkg/marecchia_bg.wasm'
             ]
         }), // Enable WebAssembly support
-        //terser(), // Minify the output (optional)
+        terser(), // Minify the output (optional)
     ]
 };
