@@ -140,12 +140,12 @@ jobs:
                 token: ${{ secrets.NPM_TOKEN }}
 
             - name: 📦 Install Dependencies
-              working-directory: './marecchia/${{ matrix.packages.path }}'
+              working-directory: ./marecchia/${{ matrix.packages.path }}
               run: |
                 npm install
 
             - name: 🛠️ Build ${{ matrix.packages.name }}
-              working-directory: './marecchia/${{ matrix.packages.path }}'
+              working-directory: ./marecchia/${{ matrix.packages.path }}
               run: |
                 npm build
 

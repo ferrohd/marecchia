@@ -146,12 +146,12 @@ jobs:
                 path: ./crates/marecchia-core/pkg
 
             - name: 📦 Install Dependencies
-              working-directory: './marecchia/${{ matrix.packages.path }}'
+              working-directory: ./marecchia/${{ matrix.packages.path }}
               run: |
                 npm install
 
             - name: 🛠️ Build
-              working-directory: './marecchia/${{ matrix.packages.path }}'
+              working-directory: ./marecchia/${{ matrix.packages.path }}
               run: |
                 npm build
 
