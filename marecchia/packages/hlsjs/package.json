@@ -31,5 +31,12 @@
   "dependencies": {
     "@marecchia/marecchia-core": "file:../../../crates/marecchia-core/pkg",
     "hls.js": "^1.5.7"
-  }
+  },
+  "keywords": [
+    "webrtc",
+    "p2p",
+    "live",
+    "streaming",
+    "hls"
+  ]
 }

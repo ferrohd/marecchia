@@ -128,7 +128,7 @@ jobs:
           matrix:
             packages:
               - name: '@marecchia/hlsjs'
-                path: marecchia/hlsjs
+                path: hlsjs
 
         steps:
             - name: 🛒 Checkout
@@ -146,12 +146,12 @@ jobs:
                 path: ./crates/marecchia-core/pkg
 
             - name: 📦 Install Dependencies
-              working-directory: ${{ matrix.packages.path }}
+              working-directory: marecchia/packages/${{ matrix.packages.path }}
               run: |
                 npm install
 
             - name: 🛠️ Build
-              working-directory: ${{ matrix.packages.path }}
+              working-directory: marecchia/packages/${{ matrix.packages.path }}
               run: |
                 npm build
 
