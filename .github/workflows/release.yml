@@ -147,9 +147,12 @@ jobs:
               run: |
                 npm build
 
-            - run: npm publish
+            - name: 📦 Publish ${{ matrix.packages.name }}
+              working-directory: ${{ matrix.packages.path }}
+              run: npm publish --access public
               env:
                 NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
             #- name: 🔼 Publish to NPM
             #  uses: JS-DevTools/npm-publish@v3
             #  with:
