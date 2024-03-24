@@ -6,8 +6,6 @@
   "workspaces": [
     "packages/hlsjs"
   ],
-  "scripts": {
-  },
   "author": {
     "name": "Alessandro Ferrara",
     "email": "alessandro2.ferrara@mail.polimi.it",
