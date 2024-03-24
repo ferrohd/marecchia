@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = [ "marecchia-tracker", "marecchia-p2p"]
+members = [ "marecchia-tracker", "marecchia-core"]
 
 [workspace.package]
-license = "GNU General Public License v3.0"
+license = "AGPL-3.0-or-later"
 authors = ["ferrohd"]
 edition = "2021"
 repository = "https://github.com/ferrohd/marecchia/"
@@ -16,5 +16,5 @@ lto = true
 opt-level = 3
 codegen-units = 1
 
-[profile.release.package.marecchia-p2p]
+[profile.release.package.marecchia-core]
 strip = true

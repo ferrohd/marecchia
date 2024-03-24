@@ -1,7 +1,7 @@
 [package]
-name = "marecchia-p2p"
-description = "A WebRTC-based P2P live streaming library"
-version = "0.1.0"
+name = "marecchia-core"
+description = "WASM module for the Marecchia project"
+version = "0.0.1"
 license.workspace = true
 authors.workspace = true
 edition.workspace = true

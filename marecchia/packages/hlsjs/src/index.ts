@@ -1,5 +1,5 @@
 import Hls, { FragmentLoaderConstructor, FragmentLoaderContext, HlsConfig, LoadStats, Loader, LoaderCallbacks, LoaderConfiguration, LoaderContext, LoaderStats } from "hls.js";
-import { new_p2p_client, P2PClient } from "../../crates/marecchia-p2p/pkg/marecchia_p2p.js";
+import { new_p2p_client, P2PClient } from "@marecchia/marecchia-core";
 
 export function p2pFragmentLoader(stream_id: string): FragmentLoaderConstructor {
     return class P2PFragmentLoader implements Loader<FragmentLoaderContext> {

@@ -2561,8 +2561,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "marecchia-p2p"
-version = "0.1.0"
+name = "marecchia-core"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "futures",

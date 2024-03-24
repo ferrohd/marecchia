@@ -1,4 +1,4 @@
-# Marecchia NPM Package 📦
+# @marecchia/hlsjs 📦
 
 Enhance your HLS streaming experience with Marecchia, a TypeScript library that brings peer-to-peer (P2P) capabilities to HLS streams.
 
@@ -20,7 +20,7 @@ Through the power of a WebAssembly (WASM) module written in Rust, Marecchia effi
 Add Marecchia to your project using npm:
 
 ```bash
-npm install marecchia
+npm install @marecchia/hlsjs
 ```
 
 ## Getting Started 🌱
@@ -35,7 +35,7 @@ Below is a basic guide on how to integrate Marecchia into your HLS.js setup:
 
 ```typescript
 import Hls from 'hls.js';
-import { P2PFragmentLoader } from 'marecchia';
+import { P2PFragmentLoader } from '@marecchia/hlsjs';
 ```
 
 2. **Configure HLS.js to Use Marecchia**:

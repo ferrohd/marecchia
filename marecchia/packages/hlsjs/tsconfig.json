@@ -9,14 +9,13 @@
         "strict": true,
         "declaration": true,
         "outDir": "dist",
-        // disable sourceMap for production
         "sourceMap": true,
         "forceConsistentCasingInFileNames": true,
         "noImplicitAny": true,
         "moduleResolution": "NodeNext",
-        "paths": {
-            "@marecchia-p2p/*": ["../crates/marecchia-p2p/pkg/*"]
-        }
+        //"paths": {
+        //    "@marecchia-p2p/*": ["../crates/marecchia-p2p/pkg/*"]
+        //}
     },
     "exclude": [
         "node_modules",

@@ -1,0 +1,32 @@
+{
+  "name": "@marecchia/hlsjs",
+  "version": "0.0.1",
+  "description": "A WebRTC-based P2P live streaming library on top of hls.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": {
+    "name": "Alessandro Ferrara",
+    "email": "alessandro2.ferrara@mail.polimi.it",
+    "url": "https://alessandro.ferrara.it/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ferrohd/marecchia.git"
+  },
+  "license": "AGPL-3.0-only",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@marecchia/marecchia-core": "file:../../../crates/marecchia-core/pkg",
+    "hls.js": "^1.5.7"
+  }
+}

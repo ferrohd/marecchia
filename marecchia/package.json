@@ -1,34 +1,29 @@
 {
   "name": "marecchia",
-  "version": "0.0.5",
-  "description": "A WebRTC-based P2P live streaming library on top of hls.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "workspaces": [
+    "packages/hlsjs"
+  ],
   "scripts": {
-    "build": "tsc",
-    "pack": "rollup -c",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npx lerna run build",
+    "clean": "npx lerna clean",
+    "list": "npx lerna list",
+    "publish": "npx lerna publish"
   },
   "author": {
     "name": "Alessandro Ferrara",
     "email": "alessandro2.ferrara@mail.polimi.it",
     "url": "https://alessandro.ferrara.it/"
   },
-  "license": "AGPL-3.0-only",
-  "files": [
-    "dist"
-  ],
-  "devDependencies": {
-    "@rollup/plugin-node-resolve": "^15.2.3",
-    "@rollup/plugin-terser": "^0.4.4",
-    "@rollup/plugin-typescript": "^11.1.6",
-    "@rollup/plugin-wasm": "^6.2.2",
-    "rollup": "^4.0.0",
-    "tslib": "^2.6.2",
-    "typescript": "^5.3.3"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ferrohd/marecchia.git"
   },
-  "dependencies": {
-    "hls.js": "^1.5.7"
+  "license": "AGPL-3.0-only",
+  "dependencies": {},
+  "devDependencies": {
+    "lerna": "^8.1.2"
   }
 }
