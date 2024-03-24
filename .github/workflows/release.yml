@@ -115,7 +115,7 @@ jobs:
           matrix:
             packages:
               - name: '@marecchia/hlsjs'
-                path: 'hlsjs'
+                path: 'marecchia/hlsjs'
         steps:
             - name: 🛒 Checkout
               uses: actions/checkout@v4
@@ -138,12 +138,12 @@ jobs:
                 registry-url: 'https://registry.npmjs.org'
 
             - name: 📦 Install Dependencies
-              working-directory: ./marecchia/${{ matrix.packages.path }}
+              working-directory: ${{ matrix.packages.path }}
               run: |
                 npm install
 
             - name: 🛠️ Build ${{ matrix.packages.name }}
-              working-directory: ./marecchia/${{ matrix.packages.path }}
+              working-directory: ${{ matrix.packages.path }}
               run: |
                 npm build
 
