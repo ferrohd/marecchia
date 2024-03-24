@@ -115,7 +115,7 @@ jobs:
           matrix:
             packages:
               - name: '@marecchia/hlsjs'
-                path: 'marecchia/hlsjs'
+                path: marecchia/hlsjs
         steps:
             - name: 🛒 Checkout
               uses: actions/checkout@v4
