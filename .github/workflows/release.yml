@@ -75,18 +75,15 @@ jobs:
 
             - name: 📦 Install wasm-pack
               working-directory: crates
-              run: |
-                npm install -g wasm-pack
+              run: npm install -g wasm-pack
 
             - name: 🎯 Install WASM Target
               working-directory: crates
-              run: |
-                rustup target add wasm32-unknown-unknown
+              run: rustup target add wasm32-unknown-unknown
 
             - name: 🔨 Build
               working-directory: crates/marecchia-core
-              run: |
-                wasm-pack build --release --target web --scope marecchia
+              run: wasm-pack build --release --target web --scope marecchia
 
             - name: 🪛 Setup Node.js
               uses: actions/setup-node@v4
@@ -139,23 +136,15 @@ jobs:
                 registry-url: 'https://registry.npmjs.org'
 
             - name: 📦 Install Dependencies
-              working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: |
-                npm install
+              working-directory: marecchia
+              run: npm install
 
             - name: 🛠️ Build ${{ matrix.packages.name }}
               working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: |
-                npm build
+              run: npm build
 
             - name: 📦 Publish Package
               uses: JS-DevTools/npm-publish@v3
               with:
                 token: ${{ secrets.NPM_TOKEN }}
                 package: marecchia/packages/${{ matrix.packages.path }}
-
-            #- name: 🔼 Publish to NPM
-            #  uses: JS-DevTools/npm-publish@v3
-            #  with:
-            #    package: ./marecchia
-            #    token: ${{ secrets.NPM_TOKEN }}

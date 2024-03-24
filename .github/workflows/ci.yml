@@ -76,18 +76,15 @@ jobs:
 
             - name: 📦 Install wasm-pack
               working-directory: crates
-              run: |
-                npm install -g wasm-pack
+              run: npm install -g wasm-pack
 
             - name: 🎯 Install WASM Target
               working-directory: crates
-              run: |
-                rustup target add wasm32-unknown-unknown
+              run: rustup target add wasm32-unknown-unknown
 
             - name: 🔨 Build
               working-directory: crates/marecchia-core
-              run: |
-                wasm-pack build --target web --scope marecchia
+              run: wasm-pack build --target web --scope marecchia
 
             - name: 💾 Save Artifact
               uses: actions/upload-artifact@v4
@@ -146,14 +143,12 @@ jobs:
                 path: ./crates/marecchia-core/pkg
 
             - name: 📦 Install Dependencies
-              working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: |
-                npm install
+              working-directory: marecchia
+              run: npm install
 
             - name: 🛠️ Build
               working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: |
-                npm build
+              run: npm build
 
             - name: 🗑️ Delete Artifact
               uses: geekyeggo/delete-artifact@v5
