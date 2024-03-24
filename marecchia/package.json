@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ferrohd/marecchia.git"
+    "url": "git+https://github.com/ferrohd/marecchia.git"
   },
   "license": "AGPL-3.0-or-later",
   "dependencies": {},
