@@ -148,7 +148,7 @@ jobs:
 
             - name: 🛠️ Build
               working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: npm build
+              run: npm run build
 
             - name: 🗑️ Delete Artifact
               uses: geekyeggo/delete-artifact@v5

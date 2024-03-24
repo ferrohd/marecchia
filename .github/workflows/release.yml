@@ -141,7 +141,7 @@ jobs:
 
             - name: 🛠️ Build ${{ matrix.packages.name }}
               working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: npm build
+              run: npm run build
 
             - name: 📦 Publish Package
               uses: JS-DevTools/npm-publish@v3
