@@ -11,7 +11,7 @@ repository.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-async-trait = "^0.1.78"
+async-trait = "^0.1.79"
 libp2p = { version = "^0.53.2", features = [
     "wasm-bindgen",
     "gossipsub",
