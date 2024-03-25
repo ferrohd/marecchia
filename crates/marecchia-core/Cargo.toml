@@ -1,7 +1,7 @@
 [package]
 name = "marecchia-core"
 description = "WASM module for the Marecchia project"
-version = "0.0.2"
+version = "0.0.3"
 license.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -33,6 +33,6 @@ wasm-bindgen = "^0.2.92"
 wasm-bindgen-futures = "^0.4.42"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 js-sys = "^0.3.69"
-tracing = { version = "0.1.40", default-features = false, features = ["attributes"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "env-filter"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3"
 tracing-web = "0.1.3"

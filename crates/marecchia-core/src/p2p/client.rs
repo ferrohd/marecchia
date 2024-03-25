@@ -40,6 +40,8 @@ pub fn new_p2p_client(
 
     let namespace = Namespace::new(stream_id)?;
 
+    tracing::info!("Starting P2P client");
+
     // Create a public/private key pair, either random or based on a seed.
     let keypair = match secret_key_seed {
         Some(seed) => {
@@ -51,6 +53,8 @@ pub fn new_p2p_client(
         }
         None => identity::Keypair::generate_ed25519(),
     };
+
+    tracing::debug!("Peer ID: {:?}", keypair.public().to_peer_id());
 
     // Build the Swarm, connecting the lower layer transport logic with the
     // higher layer network behaviour logic.
