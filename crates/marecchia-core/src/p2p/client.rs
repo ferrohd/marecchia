@@ -13,6 +13,8 @@ use libp2p::{
 };
 use libp2p_webrtc_websys as webrtc_websys;
 use std::{num::NonZeroU8, str::FromStr, time::Duration};
+use tracing_subscriber::{fmt::format::Pretty, prelude::*};
+use tracing_web::{performance_layer, MakeWebConsoleWriter};
 use wasm_bindgen::prelude::*;
 
 use super::{
@@ -25,7 +27,16 @@ pub fn new_p2p_client(
     stream_id: String,
     secret_key_seed: Option<u8>,
 ) -> Result<P2PClient, ClientError> {
-    tracing_wasm::set_as_global_default();
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false) // Only partially supported across browsers
+        .without_time() // std::time is not available in browsers, see note below
+        .with_writer(MakeWebConsoleWriter::new()); // write events to the console
+    let perf_layer = performance_layer().with_details_from_fields(Pretty::default());
+
+    tracing_subscriber::registry()
+        .with(fmt_layer)
+        .with(perf_layer)
+        .init(); // Install these as subscribers to tracing events
 
     let namespace = Namespace::new(stream_id)?;
 

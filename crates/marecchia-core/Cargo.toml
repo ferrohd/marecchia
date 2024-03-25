@@ -1,7 +1,7 @@
 [package]
 name = "marecchia-core"
 description = "WASM module for the Marecchia project"
-version = "0.0.1"
+version = "0.0.2"
 license.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -33,35 +33,6 @@ wasm-bindgen = "^0.2.92"
 wasm-bindgen-futures = "^0.4.42"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 js-sys = "^0.3.69"
-m3u8-rs = "^6.0"
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tracing-wasm = "0.2.1"
-
-[dependencies.web-sys]
-version = "^0.3.69"
-features = [
-    "Window",
-    "console",
-    "MessageEvent",
-    "Request",
-    "RequestInit",
-    "RequestMode",
-    "Response",
-    "RtcPeerConnection",
-    "RtcSignalingState",
-    "RtcSdpType",
-    "RtcSessionDescriptionInit",
-    "RtcPeerConnectionIceEvent",
-    "RtcIceCandidate",
-    "RtcDataChannel",
-    "RtcDataChannelEvent",
-    "WebSocket",
-    "BinaryType",
-    "Blob",
-    "ErrorEvent",
-    "FileReader",
-    "MessageEvent",
-    "ProgressEvent",
-    "WebSocket",
-]
+tracing = { version = "0.1.40", default-features = false, features = ["attributes"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "fmt", "ansi", "env-filter"] }
+tracing-web = "0.1.3"
