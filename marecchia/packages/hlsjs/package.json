@@ -1,6 +1,6 @@
 {
   "name": "@marecchia/hlsjs",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A WebRTC-based P2P live streaming library on top of hls.js",
   "publishConfig": {
     "access": "public"

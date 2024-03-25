@@ -22,7 +22,15 @@ export function p2pFragmentLoader(stream_id: string): FragmentLoaderConstructor 
             context.rangeStart = undefined;
             context.rangeEnd = undefined;
 
-            this.p2pNetwork.request_segment(segmentId)
+            const segment_promise = this.p2pNetwork.request_segment(segmentId);
+            const timeout_promise = new Promise((_resolve: (value: Uint8Array) => void, reject) => {
+                const timeout = setTimeout(() => {
+                    clearTimeout(timeout)
+                    reject(new Error("Segment request timed out"))
+                }, 5000);
+            });
+
+            Promise.race([segment_promise, timeout_promise])
                 .then((segment) => {
                     callbacks.onSuccess({
                         url: `p2p://${segmentId}`,
