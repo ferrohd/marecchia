@@ -112,12 +112,11 @@ impl P2PClient {
         segment: Uint8Array,
     ) -> Result<(), ClientError> {
         let data = segment.to_vec();
-        let res = self
+        self
             .0
             .send(Command::ProvideSegment { segment_id, data })
             .await?;
-
-        Ok(res)
+        Ok(())
     }
 
     /// Request the content of the given file from the given peer.
@@ -149,15 +148,15 @@ pub enum ClientError {
     RequestError(RequestError),
 }
 
-impl Into<wasm_bindgen::JsValue> for ClientError {
-    fn into(self) -> wasm_bindgen::JsValue {
-        match self {
-            Self::ConfigError => 3.into(),
-            Self::BadNamespace => 0.into(),
-            Self::ListenError => 4.into(),
-            Self::DialError => 5.into(),
-            Self::ConnectionClosed => 1.into(),
-            Self::RequestError(_) => 2.into(),
+impl From<ClientError> for wasm_bindgen::JsValue {
+    fn from(val: ClientError) -> Self {
+        match val {
+            ClientError::ConfigError => 3.into(),
+            ClientError::BadNamespace => 0.into(),
+            ClientError::ListenError => 4.into(),
+            ClientError::DialError => 5.into(),
+            ClientError::ConnectionClosed => 1.into(),
+            ClientError::RequestError(_) => 2.into()
         }
     }
 }

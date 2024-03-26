@@ -1,7 +1,7 @@
 [package]
 name = "marecchia-core"
 description = "WASM module for the Marecchia project"
-version = "0.0.3"
+version = "0.0.4"
 license.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 async-trait = "^0.1.79"
+console_error_panic_hook = "0.1.7"
 libp2p = { version = "^0.53.2", features = [
     "wasm-bindgen",
     "gossipsub",

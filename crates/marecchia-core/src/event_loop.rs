@@ -383,7 +383,6 @@ impl EventLoop {
             }
             Command::Quit => {
                 tracing::info!("Shutting down the network event loop");
-                return;
             }
         }
     }
