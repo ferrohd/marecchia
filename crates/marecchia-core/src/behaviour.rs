@@ -33,7 +33,7 @@ impl From<&Keypair> for ComposedSwarmBehaviour {
         // TODO: FINISH CONFIG
         let gossipsub_config = gossipsub::Config::default();
         let pubsub =
-            gossipsub::Behaviour::new(MessageAuthenticity::Author(peer_id), gossipsub_config)
+            gossipsub::Behaviour::new(MessageAuthenticity::Signed(keypair.to_owned()), gossipsub_config)
                 .unwrap();
         Self {
             ping,
