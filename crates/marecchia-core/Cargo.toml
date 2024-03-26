@@ -1,7 +1,7 @@
 [package]
 name = "marecchia-core"
 description = "WASM module for the Marecchia project"
-version = "0.0.4"
+version = "0.0.5"
 license.workspace = true
 authors.workspace = true
 edition.workspace = true

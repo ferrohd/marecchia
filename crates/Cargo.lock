@@ -2553,7 +2553,7 @@ dependencies = [
 
 [[package]]
 name = "marecchia-core"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "async-trait",
  "console_error_panic_hook",

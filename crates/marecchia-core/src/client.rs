@@ -73,8 +73,9 @@ pub fn new_p2p_client(
         .build();
 
     // Listen for inbound connections
-    let addr = Multiaddr::empty().with(Protocol::WebRTCDirect);
-    swarm.listen_on(addr).map_err(|e| ClientError::ListenError);
+    //let addr = Multiaddr::empty().with(Protocol::WebRTCDirect);
+    //swarm.listen_on(addr).map_err(|e| ClientError::ListenError);
+    //tracing::info!("Listening on {:?}", addr);
 
     let (command_send, command_recv) = mpsc::channel(20);
 
@@ -82,6 +83,7 @@ pub fn new_p2p_client(
         EventLoop::new(namespace, swarm, command_recv).run().await;
     });
 
+    tracing::info!("P2P client started");
     Ok(P2PClient(command_send))
 }
 

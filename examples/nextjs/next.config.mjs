@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    reactStrictMode: true,
+    // React Strict Mode is disabled in development mode to avoid double rendering
+    reactStrictMode: process.env.NODE_ENV === 'production',
     output: 'export',
     webpack: (config, _options) => {
         config.experiments = {
@@ -8,7 +9,7 @@ const nextConfig = {
             asyncWebAssembly: true
         };
         return config;
-    }
+    },
 };
 
 export default nextConfig;

@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import Hls, { HlsConfig } from "hls.js";
-import init from "@marecchia/marecchia-core";
-import { p2pFragmentLoader } from "@marecchia/hlsjs";
+import init, { p2pFragmentLoader } from "@marecchia/hlsjs";
 
 export type VideoProps = {
     src: string;

@@ -38,6 +38,7 @@ impl EventLoop {
 
     pub async fn run(mut self) {
         // Register with the rendezvous node.
+        // TODO: move the rendevouz connection in the client.rs file
         let rendezvous_node = PeerId::random();
         match self.swarm.behaviour_mut().rendezvous.register(
             self.namespace.clone(),
@@ -334,7 +335,7 @@ impl EventLoop {
                 tracing::info!("Dialing peer {:?} with addr {:?}", peer_id, peer_addr);
                 match self.swarm.dial(peer_addr.with(Protocol::P2p(peer_id))) {
                     Ok(_) => {
-                        tracing::info!("Successfuclly dialed peer {:?}", peer_id);
+                        tracing::info!("Successfully dialed peer {:?}", peer_id);
                         let _ = sender.send(Ok(()));
                     }
                     Err(e) => {
