@@ -4,7 +4,8 @@
     "access": "public"
   },
   "workspaces": [
-    "packages/hlsjs"
+    "packages/*",
+    "../crates/marecchia-core/pkg"
   ],
   "author": {
     "name": "Alessandro Ferrara",
@@ -16,6 +17,5 @@
     "url": "git+https://github.com/ferrohd/marecchia.git"
   },
   "license": "AGPL-3.0-or-later",
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {}
 }

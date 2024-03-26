@@ -29,7 +29,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@marecchia/marecchia-core": "file:../../../crates/marecchia-core/pkg",
+    "@marecchia/marecchia-core": "latest",
     "hls.js": "^1.5.7"
   },
   "keywords": [

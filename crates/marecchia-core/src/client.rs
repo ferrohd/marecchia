@@ -12,7 +12,7 @@ use libp2p::{
     SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use std::{num::NonZeroU8, str::FromStr, time::Duration};
+use std::{num::NonZeroU8, panic, str::FromStr, time::Duration};
 use tracing_subscriber::{fmt::format::Pretty, prelude::*};
 use tracing_web::{performance_layer, MakeWebConsoleWriter};
 use wasm_bindgen::prelude::*;
@@ -27,6 +27,7 @@ pub fn new_p2p_client(
     stream_id: String,
     secret_key_seed: Option<u8>,
 ) -> Result<P2PClient, ClientError> {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false) // Only partially supported across browsers
         .without_time() // std::time is not available in browsers, see note below
@@ -112,8 +113,7 @@ impl P2PClient {
         segment: Uint8Array,
     ) -> Result<(), ClientError> {
         let data = segment.to_vec();
-        self
-            .0
+        self.0
             .send(Command::ProvideSegment { segment_id, data })
             .await?;
         Ok(())
@@ -156,7 +156,7 @@ impl From<ClientError> for wasm_bindgen::JsValue {
             ClientError::ListenError => 4.into(),
             ClientError::DialError => 5.into(),
             ClientError::ConnectionClosed => 1.into(),
-            ClientError::RequestError(_) => 2.into()
+            ClientError::RequestError(_) => 2.into(),
         }
     }
 }
