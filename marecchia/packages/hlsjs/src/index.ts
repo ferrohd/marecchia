@@ -11,7 +11,7 @@ export function p2pFragmentLoader(stream_id: string): FragmentLoaderConstructor 
 
         constructor(confg: HlsConfig) {
             this.p2pNetwork = new_p2p_client(stream_id);
-            this.httpLoader = new Hls.default.DefaultConfig.loader(confg).load;
+            this.httpLoader = new Hls.DefaultConfig.loader(confg).load;
             this.stats = new LoadStats();
             this.context = null;
         }

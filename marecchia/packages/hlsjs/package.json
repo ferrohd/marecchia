@@ -1,13 +1,13 @@
 {
   "name": "@marecchia/hlsjs",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A WebRTC-based P2P live streaming library on top of hls.js",
   "publishConfig": {
     "access": "public"
   },
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
