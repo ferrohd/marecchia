@@ -1,78 +1,75 @@
-# Marecchia: P2P Streaming on the Web
+# Marecchia Project Root
 
-**Note:**
-This project is still a work in progress and is not yet ready for production use. Please check back later for updates.
+Welcome to the Marecchia Project, a sophisticated ecosystem designed for enhancing video streaming applications with efficient Peer-to-Peer (P2P) capabilities.
 
-Welcome to the Marecchia project repository! Marecchia is a revolutionary solution designed to enable peer-to-peer (P2P) streaming directly in your web browser, leveraging the power of WebAssembly (Wasm) for efficient video content distribution among viewers. This project also features a backend "tracker" system, essential for facilitating the discovery and interconnection of peers for optimized P2P content sharing.
+The Marecchia ecosystem is crafted to address the challenges in video streaming by leveraging the power of P2P technology for scalable, cost-efficient content delivery.
 
-## Features
+This project is split into two core parts: Rust-based backend components housed under `crates` and a collection of npm packages tailored for integrating P2P streaming into various video players located under `marecchia`.
 
-- **WebAssembly Library:** A cutting-edge Wasm library specifically crafted to work in tandem with your browser's video player element. It empowers the video player to engage in a P2P network, streaming video content from viewer to viewer, which significantly reduces the dependency on server bandwidth.
+## Project Structure 📁
 
-- **Tracker Binary:** A dedicated backend service that serves as a crucial meeting point for peers. This tracker enables viewers to find each other, creating a web of connections that ensure the most efficient paths for data transfer are utilized, making the streaming process smoother and faster.
+The repository is organized into the following main sections:
 
-## Getting Started
+```plaintext
+/
+├── crates/
+│   ├── marecchia-tracker/    # Rust backend for P2P peer discovery
+│   └── marecchia-core/       # @marecchia/marecchia-core WASM library for P2P functionality (core dependency)
+└── marecchia/
+    └── packages/             # NPM packages for integration with various video players
+```
 
-Begin your journey with Marecchia by following these easy steps:
+### Crates (`/crates`)
 
-### Prerequisites
+- **marecchia-tracker**: A Rust-based tracker server, facilitating peer discovery within the P2P network.
+- **marecchia-core**: The foundational library, compiled to WebAssembly, which powers the P2P functionality in the browser across video players.
 
-- Node.js (version 14.0 or newer recommended)
-- A modern web browser with WebAssembly support enabled
-- Rust programming language environment (for compiling the tracker and Wasm library)
+**Consult individual READMEs within each subdirectory for more detailed information about developing and contributing to specific components of the Marecchia ecosystem.**
 
-### Setting Up the Tracker
+### Marecchia npm Workspace (`/marecchia`)
 
-To set up the tracker, which helps peers find each other:
+Under this directory, you will find npm packages specifically developed for integrating Marecchia's P2P streaming technology with prevalent video players
 
-1. **Build the Tracker:**
+## Getting Started ➡️
 
-    ```bash
-    cd tracker
-    cargo build --release
+To begin working with the Marecchia Project, ensure you have the following prerequisites installed on your system:
+
+- [Rust](https://www.rust-lang.org/tools/install) (including Cargo), needed for developing and building the Rust-based components.
+- [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/), required for managing the npm packages and workspace.
+
+### Setup Instructions
+
+1. **Clone the Repo:**
+
+    ```sh
+    git clone https://github.com/username/marecchia.git
+    cd marecchia
     ```
 
-2. **Run the Tracker:**
+2. **Set Up the Rust Environment:**
 
-    Start it by executing:
+    Navigate to each Rust crate under `/crates` to build or develop the Rust components:
 
-    ```bash
-    ./target/release/tracker
+    ```sh
+    cd crates/marecchia-tracker
+    cargo build
     ```
 
-    The tracker by default listens on port `8080`, but this can be adjusted as per your requirements in the configuration.
+    Repeat for `marecchia-core`.
 
-### Integrating the Wasm Library
+3. **Install npm Dependencies:**
 
-To integrate the Wasm library with your video player:
+    Within the `marecchia/` directory, install the npm dependencies for the workspace:
 
-1. **Compile the Wasm Library:**
-
-    ```bash
-    cd wasm-lib
-    cargo build --target wasm32-unknown-unknown --release
+    ```sh
+    cd marecchia
+    npm install
     ```
 
-    Then, use `wasm-bindgen` (or another tool of your choice) to generate the required JavaScript bindings.
+## Contribution Guidelines 🤝
 
-2. **Integration Example:**
+The Marecchia Project welcomes contributions from the community, whether you're fixing bugs, improving documentation, or proposing new features. Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to contribute effectively to this project.
 
-    An integration example can be found at `examples/integration.html`. Include the Wasm and JS bindings in your web application and initialize the Marecchia library within your video player setup to get started.
+## License 📄
 
-## Usage
-
-With the Marecchia library integrated and the tracker running, your video player will automatically try to utilize P2P connections for streaming video content among viewers.
-
-Ensure that your video player element is properly set up to use the Wasm library and initiates the P2P streaming functionality on initialization.
-
-## Contributing
-
-Contributions are highly appreciated! Whether it's feature enhancements, documentation improvements, or bug fixes, feel free to fork the project and submit a pull request.
-
-## License
-
-Marecchia is open-sourced under the [MIT License](LICENSE), providing a great degree of freedom for personal and commercial use.
-
----
-
-For additional assistance, queries, or to report issues, please create an issue in the GitHub repository.
+The Marecchia Project is licensed under the AGPL license. See the [LICENSE](LICENSE) file in the root of the repository for full license text.
