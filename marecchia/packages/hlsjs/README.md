@@ -1,12 +1,17 @@
 # @marecchia/hlsjs 📦
 
+[![CI](https://github.com/ferrohd/marecchia/actions/workflows/ci.yml/badge.svg)](https://github.com/ferrohd/marecchia/actions/workflows/ci.yml)
+![npm version](https://img.shields.io/npm/v/@marecchia/hlsjs.svg)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
+[![GitHub stars](https://img.shields.io/github/stars/ferrohd/marecchia?style=social)](https://github.com/ferrohd/marecchia)
+
 Enhance your HLS streaming experience with Marecchia, a TypeScript library that brings peer-to-peer (P2P) capabilities to HLS streams.
 
 Through the power of a WebAssembly (WASM) module written in Rust, Marecchia efficiently manages P2P networking, optimizing bandwidth and improving streaming quality.
 
 > [!IMPORTANT]
 > This README covers the setup and usage of the Marecchia NPM package.
-> For details on setting up the tracker backend, please refer to the separate [README in the `crates/marecchia-tracker`](https://github.com/ferrohd/marecchia/blob/master/crates/marecchia-tracker/README.md) directory.
+> For details on setting up the `Marecchia Tracker`, please refer to the separate [README in the`crates/marecchia-tracker`](<https://github.com/ferrohd/marecchia/blob/master/crates/marecchia-tracker/README.md>) directory.
 
 ## Features 🚀
 
@@ -35,7 +40,7 @@ Below is a basic guide on how to integrate Marecchia into your HLS.js setup:
 
 ```typescript
 import Hls from 'hls.js';
-import { P2PFragmentLoader } from '@marecchia/hlsjs';
+import init, { p2pFragmentLoader } from "@marecchia/hlsjs";
 ```
 
 2. **Configure HLS.js to Use Marecchia**:
@@ -44,9 +49,12 @@ import { P2PFragmentLoader } from '@marecchia/hlsjs';
 // Ensure HLS.js is supported in the user's browser
 if (Hls.isSupported()) {
     const video = document.getElementById('video');
+    // Init the Marecchia WASM module
+    await init();
+    const fLoader = p2pFragmentLoader(props.src);
     const hls = new Hls({
-        // Configure Marecchia's P2PFragmentLoader as the loader
-        loader: P2PFragmentLoader,
+        // Set the custom fragment loader in the Hls config
+        fLoader
     });
 
     // Load your .m3u8 source
@@ -57,10 +65,12 @@ if (Hls.isSupported()) {
     hls.on(Hls.Events.MANIFEST_PARSED, function () {
         video.play();
     });
+
+    // Enjoy P2P streaming!
 }
 ```
 
-This example demonstrates how to set up HLS.js with Marecchia to start enjoying the benefits of P2P streaming.
+For more advanced usage and configuration options, refer to the [examples](https://github.com/ferrohd/marecchia/tree/master/examples) folder
 
 ## Contribution 🤝
 
@@ -68,4 +78,4 @@ Contributions to Marecchia are welcome! If you have improvements or fixes, pleas
 
 ## License 📜
 
-Marecchia and its NPM package are under the GNU General Public License v3 (GNUv3), promoting freedom to share and change the software.
+Marecchia and its NPM package are under the AGPL-3.0 license. For more details, refer to the [LICENSE](LICENSE) file.
