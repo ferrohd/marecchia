@@ -1,4 +1,4 @@
-# Marecchia npm Workspace
+# Marecchia npm packages
 
 This directory serves as the heart of our efforts to bring peer-to-peer (P2P) streaming capabilities to various video players.
 
@@ -6,7 +6,7 @@ This directory serves as the heart of our efforts to bring peer-to-peer (P2P) st
 
 Below is a list of the current npm packages available within the Marecchia project, each tailored to a specific video player technology.
 
-- **@marecchia/hlsjs**: Designed for [`HLS.js`](https://github.com/video-dev/hls.js), this package integrates P2P streaming to HLS (HTTP Live Streaming) content, optimizing video delivery while ensuring seamless playback.
+- [**@marecchia/hlsjs**](https://github.com/ferrohd/marecchia/tree/master/marecchia/packages/hlsjs): Designed for [`HLS.js`](https://github.com/video-dev/hls.js), this package integrates P2P streaming to HLS (HTTP Live Streaming) content, optimizing video delivery while ensuring seamless playback.
 
 _Aside from the listed package, the Marecchia team is continuously working on expanding support to other popular video players. Stay tuned for more updates._
 
