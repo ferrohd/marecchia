@@ -1,15 +1,18 @@
-use futures::channel::{mpsc::SendError, oneshot::Canceled};
+use futures::{
+    channel::{mpsc::SendError, oneshot::Canceled},
+    StreamExt,
+};
 use js_sys::Uint8Array;
 use libp2p::{
     futures::{
         channel::{mpsc, oneshot},
         SinkExt,
     },
-    identity::{self, PeerId},
+    identity,
     multiaddr::{Multiaddr, Protocol},
     rendezvous::{Namespace, NamespaceTooLong},
     swarm::DialError,
-    SwarmBuilder,
+    PeerId, SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
 use std::{num::NonZeroU8, panic, str::FromStr, time::Duration};
@@ -23,10 +26,7 @@ use super::{
 };
 
 #[wasm_bindgen]
-pub fn new_p2p_client(
-    stream_id: String,
-    secret_key_seed: Option<u8>,
-) -> Result<P2PClient, ClientError> {
+pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, ClientError> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false) // Only partially supported across browsers
@@ -39,22 +39,11 @@ pub fn new_p2p_client(
         .with(perf_layer)
         .init(); // Install these as subscribers to tracing events
 
-    let namespace = Namespace::new(stream_id)?;
-
-    tracing::info!("Starting P2P client");
+    let namespace = Namespace::new(stream_namespace)?;
+    tracing::info!("Starting P2P client with stream namespace: {:?}", namespace);
 
     // Create a public/private key pair, either random or based on a seed.
-    let keypair = match secret_key_seed {
-        Some(seed) => {
-            let mut bytes = [0u8; 32];
-            bytes[0] = seed;
-            identity::Keypair::ed25519_from_bytes(&mut bytes).expect(
-                "this returns `Err` only if the length is wrong; the length is correct; qed",
-            )
-        }
-        None => identity::Keypair::generate_ed25519(),
-    };
-
+    let keypair = identity::Keypair::generate_ed25519();
     tracing::debug!("Peer ID: {:?}", keypair.public().to_peer_id());
 
     // Build the Swarm, connecting the lower layer transport logic with the
@@ -84,6 +73,18 @@ pub fn new_p2p_client(
     });
 
     tracing::info!("P2P client started");
+
+    let rendezvous_id = PeerId::random();
+    let rendezvous_addr = Multiaddr::empty()
+        .with(Protocol::Dns("rendezvous.marecchia.io".into()))
+        .with(Protocol::P2p(rendezvous_id));
+
+    swarm
+        .dial(rendezvous_addr)
+        .map_err(|_| ClientError::DialError)?;
+
+    tracing::info!("Dialing rendezvous server at {:?}", rendezvous_addr);
+
     Ok(P2PClient(command_send))
 }
 
@@ -93,21 +94,6 @@ pub struct P2PClient(mpsc::Sender<Command>);
 
 #[wasm_bindgen]
 impl P2PClient {
-    /// Dial the given peer at the given address.
-    pub async fn dial(&mut self, peer_id: String, peer_addr: String) -> Result<(), ClientError> {
-        let peer_id = PeerId::from_str(peer_id.as_str()).unwrap();
-        let peer_addr = Multiaddr::from_str(peer_addr.as_str()).unwrap();
-        let (sender, receiver) = oneshot::channel();
-        self.0
-            .send(Command::Dial {
-                peer_id,
-                peer_addr,
-                sender,
-            })
-            .await?;
-        receiver.await?
-    }
-
     /// Advertise the local node as the provider of the given file on the DHT.
     pub async fn send_segment(
         &mut self,

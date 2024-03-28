@@ -1,13 +1,19 @@
 use libp2p::{
     futures::StreamExt,
-    identify, noise, ping, rendezvous,
+    identify,
+    multiaddr::Protocol,
+    noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux,
+    tcp, yamux, Multiaddr,
 };
+use libp2p_webrtc as webrtc;
 use tokio::signal::unix::SignalKind;
 
-use std::error::Error;
 use std::time::Duration;
+use std::{
+    error::Error,
+    net::{Ipv4Addr, Ipv6Addr},
+};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -19,6 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
     // used as the rendezvous point by the other peer examples.
     let keypair = libp2p::identity::Keypair::ed25519_from_bytes([0; 32])?;
+    let rendezvous_id = keypair.public().to_peer_id();
 
     let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
         .with_tokio()
@@ -38,15 +45,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(5)))
         .build();
 
-    let _ = swarm.listen_on("/ip4/0.0.0.0/tcp/62649".parse().unwrap());
+    let listen_addr = Multiaddr::empty()
+        .with(Protocol::Ip4(Ipv4Addr::UNSPECIFIED))
+        .with(Protocol::Ip6(Ipv6Addr::UNSPECIFIED))
+        .with(Protocol::Udp(0))
+        .with(Protocol::P2p(rendezvous_id));
+
+    swarm.listen_on(listen_addr)?;
 
     let mut sigint = tokio::signal::unix::signal(SignalKind::interrupt())?;
     let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate())?;
 
     tokio::select! {
         _ = rendezvous_loop(&mut swarm) => {}
-        _ = sigint.recv() => {}
-        _ = sigterm.recv() => {}
+        _ = sigint.recv() => {
+            tracing::info!("Received SIGINT, shutting down...");
+        }
+        _ = sigterm.recv() => {
+            tracing::info!("Received SIGTERM, shutting down...");
+        }
     }
 
     Ok(())
@@ -71,7 +88,10 @@ async fn rendezvous_loop(swarm: &mut libp2p::Swarm<SwarmBehaviour>) {
     }
 }
 
-async fn handle_behaviour_event(swarm: &mut libp2p::Swarm<SwarmBehaviour>, event: ComposedSwarmEvent) {
+async fn handle_behaviour_event(
+    swarm: &mut libp2p::Swarm<SwarmBehaviour>,
+    event: ComposedSwarmEvent,
+) {
     match event {
         ComposedSwarmEvent::Identify(event) => {
             handle_identify_event(swarm, event).await;
@@ -103,7 +123,10 @@ async fn handle_identify_event(swarm: &mut libp2p::Swarm<SwarmBehaviour>, event:
     }
 }
 
-async fn handle_rendezvous_event(_swarm: &mut libp2p::Swarm<SwarmBehaviour>, event: rendezvous::server::Event) {
+async fn handle_rendezvous_event(
+    _swarm: &mut libp2p::Swarm<SwarmBehaviour>,
+    event: rendezvous::server::Event,
+) {
     match event {
         rendezvous::server::Event::PeerRegistered { peer, registration } => {
             tracing::info!(
