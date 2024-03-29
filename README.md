@@ -1,5 +1,9 @@
 # Marecchia Project 🌊
 
+[![CI](https://github.com/ferrohd/marecchia/actions/workflows/ci.yml/badge.svg)](https://github.com/ferrohd/marecchia/actions/workflows/ci.yml)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
+[![GitHub stars](https://img.shields.io/github/stars/ferrohd/marecchia?style=social)](https://github.com/ferrohd/marecchia)
+
 Welcome to the Marecchia Project, a sophisticated ecosystem designed for enhancing video streaming applications with Peer-to-Peer capabilities for scalable, cost-efficient content delivery.
 
 ## Project Structure 📁
