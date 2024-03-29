@@ -1,4 +1,4 @@
-# Marecchia Project Root
+# Marecchia Project 🌊
 
 Welcome to the Marecchia Project, a sophisticated ecosystem designed for enhancing video streaming applications with Peer-to-Peer capabilities for scalable, cost-efficient content delivery.
 
