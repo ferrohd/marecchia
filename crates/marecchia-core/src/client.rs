@@ -1,6 +1,5 @@
 use futures::{
-    channel::{mpsc::SendError, oneshot::Canceled},
-    StreamExt,
+    channel::{mpsc::SendError, oneshot::Canceled}
 };
 use js_sys::Uint8Array;
 use libp2p::{
@@ -15,7 +14,7 @@ use libp2p::{
     PeerId, SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use std::{num::NonZeroU8, panic, str::FromStr, time::Duration};
+use std::{num::NonZeroU8, panic, time::Duration};
 use tracing_subscriber::{fmt::format::Pretty, prelude::*};
 use tracing_web::{performance_layer, MakeWebConsoleWriter};
 use wasm_bindgen::prelude::*;
@@ -68,10 +67,6 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, ClientError
 
     let (command_send, command_recv) = mpsc::channel(20);
 
-    wasm_bindgen_futures::spawn_local(async move {
-        EventLoop::new(namespace, swarm, command_recv).run().await;
-    });
-
     tracing::info!("P2P client started");
 
     let rendezvous_id = PeerId::random();
@@ -79,11 +74,14 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, ClientError
         .with(Protocol::Dns("rendezvous.marecchia.io".into()))
         .with(Protocol::P2p(rendezvous_id));
 
+    tracing::info!("Dialing rendezvous server at {:?}", rendezvous_addr);
     swarm
         .dial(rendezvous_addr)
         .map_err(|_| ClientError::DialError)?;
 
-    tracing::info!("Dialing rendezvous server at {:?}", rendezvous_addr);
+    wasm_bindgen_futures::spawn_local(async move {
+        EventLoop::new(namespace, swarm, command_recv).run().await;
+    });
 
     Ok(P2PClient(command_send))
 }
@@ -150,7 +148,7 @@ impl From<ClientError> for wasm_bindgen::JsValue {
 }
 
 impl From<NamespaceTooLong> for ClientError {
-    fn from(value: NamespaceTooLong) -> Self {
+    fn from(_value: NamespaceTooLong) -> Self {
         ClientError::BadNamespace
     }
 }
@@ -174,7 +172,7 @@ impl From<RequestError> for ClientError {
 }
 
 impl From<DialError> for ClientError {
-    fn from(value: DialError) -> Self {
+    fn from(_value: DialError) -> Self {
         ClientError::DialError
     }
 }
