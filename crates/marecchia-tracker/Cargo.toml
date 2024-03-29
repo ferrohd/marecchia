@@ -11,7 +11,7 @@ repository.workspace = true
 [dependencies]
 libp2p = { version = "0.53.2", features = ["full"] }
 libp2p-webrtc = "0.3.0"
-tokio = { version = "1.36", features = ["full"] }
+tokio = { version = "1.37", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
