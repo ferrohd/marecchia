@@ -1,12 +1,15 @@
 use libp2p::{
     futures::StreamExt,
     identify,
+    metrics::{Metrics, Recorder},
     multiaddr::Protocol,
     noise, ping, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
     tcp, yamux, Multiaddr,
 };
 use libp2p_webrtc as webrtc;
+use prometheus_client::registry::Registry;
+use opentelemetry::KeyValue;
 use tokio::signal::unix::SignalKind;
 
 use std::time::Duration;
@@ -14,13 +17,14 @@ use std::{
     error::Error,
     net::{Ipv4Addr, Ipv6Addr},
 };
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+
+mod metrics;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .try_init();
+    setup_tracing()?;
+    let mut metric_registry = Registry::default();
 
     // Results in PeerID 12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN which is
     // used as the rendezvous point by the other peer examples.
@@ -34,6 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             noise::Config::new,
             yamux::Config::default,
         )?
+        .with_bandwidth_metrics(&mut metric_registry)
         .with_behaviour(|key| SwarmBehaviour {
             identify: identify::Behaviour::new(identify::Config::new(
                 "rendezvous-example/1.0.0".to_string(),
@@ -44,6 +49,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         })?
         .with_swarm_config(|cfg| cfg.with_idle_connection_timeout(Duration::from_secs(5)))
         .build();
+
+    let metrics = Metrics::new(&mut metric_registry);
+    tokio::spawn(metrics::metrics_server(metric_registry));
 
     let listen_addr = Multiaddr::empty()
         .with(Protocol::Ip4(Ipv4Addr::UNSPECIFIED))
@@ -57,7 +65,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate())?;
 
     tokio::select! {
-        _ = rendezvous_loop(&mut swarm) => {}
+        _ = rendezvous_loop(&mut swarm, &metrics) => {}
         _ = sigint.recv() => {
             tracing::info!("Received SIGINT, shutting down...");
         }
@@ -69,8 +77,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn rendezvous_loop(swarm: &mut libp2p::Swarm<SwarmBehaviour>) {
+async fn rendezvous_loop(swarm: &mut libp2p::Swarm<SwarmBehaviour>, metrics: &Metrics) {
     while let Some(event) = swarm.next().await {
+        metrics.record(&event);
         match event {
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 tracing::info!("Connected to {}", peer_id);
@@ -212,4 +221,25 @@ impl From<ping::Event> for ComposedSwarmEvent {
     fn from(event: ping::Event) -> Self {
         ComposedSwarmEvent::Ping(event)
     }
+}
+
+fn setup_tracing() -> Result<(), Box<dyn Error>> {
+    let tracer = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
+        .with_trace_config(opentelemetry_sdk::trace::Config::default().with_resource(
+            opentelemetry_sdk::Resource::new(vec![KeyValue::new("service.name", "marecchia-tracker")]),
+        ))
+        .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_filter(EnvFilter::from_default_env()))
+        .with(
+            tracing_opentelemetry::layer()
+                .with_tracer(tracer)
+                .with_filter(EnvFilter::from_default_env()),
+        )
+        .try_init()?;
+
+    Ok(())
 }
