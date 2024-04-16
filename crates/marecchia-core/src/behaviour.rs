@@ -4,7 +4,7 @@ use libp2p::{
     autonat,
     gossipsub::{self, MessageAuthenticity},
     identity::Keypair,
-    ping,
+    ping, relay,
     rendezvous::client as rendezvous,
     swarm::NetworkBehaviour,
 };
@@ -14,16 +14,17 @@ use libp2p::{
 pub struct ComposedSwarmBehaviour {
     pub ping: ping::Behaviour,
     pub rendezvous: rendezvous::Behaviour,
+    pub relay: relay::client::Behaviour,
     pub pubsub: gossipsub::Behaviour,
 }
 
-impl From<&Keypair> for ComposedSwarmBehaviour {
-    fn from(keypair: &Keypair) -> Self {
+impl ComposedSwarmBehaviour {
+    pub fn new(keypair: &Keypair, relay_behaviour: relay::client::Behaviour) -> Self {
         let peer_id = keypair.public().to_peer_id();
         // Define the various behaviours of the swarm.
         let ping_config = ping::Config::new()
-        .with_interval(Duration::from_secs(5))
-        .with_timeout(Duration::from_secs(10));
+            .with_interval(Duration::from_secs(5))
+            .with_timeout(Duration::from_secs(10));
         let ping = ping::Behaviour::new(ping_config);
 
         let autonat_config = autonat::Config::default();
@@ -32,14 +33,18 @@ impl From<&Keypair> for ComposedSwarmBehaviour {
         let rendezvous = rendezvous::Behaviour::new(keypair.to_owned());
         // TODO: FINISH CONFIG
         let gossipsub_config = gossipsub::Config::default();
-        let pubsub =
-            gossipsub::Behaviour::new(MessageAuthenticity::Signed(keypair.to_owned()), gossipsub_config)
-                .unwrap();
+        let pubsub = gossipsub::Behaviour::new(
+            MessageAuthenticity::Signed(keypair.to_owned()),
+            gossipsub_config,
+        )
+        .unwrap();
+
         Self {
             ping,
             //autonat,
             pubsub,
             rendezvous,
+            relay: relay_behaviour,
         }
     }
 }
@@ -48,6 +53,7 @@ impl From<&Keypair> for ComposedSwarmBehaviour {
 pub enum ComposedSwarmEvent {
     Ping(ping::Event),
     Rendezvous(rendezvous::Event),
+    Relay(relay::client::Event),
     Gossipsub(gossipsub::Event),
 }
 
@@ -60,6 +66,12 @@ impl From<ping::Event> for ComposedSwarmEvent {
 impl From<rendezvous::Event> for ComposedSwarmEvent {
     fn from(event: rendezvous::Event) -> Self {
         ComposedSwarmEvent::Rendezvous(event)
+    }
+}
+
+impl From<relay::client::Event> for ComposedSwarmEvent {
+    fn from(event: relay::client::Event) -> Self {
+        ComposedSwarmEvent::Relay(event)
     }
 }
 

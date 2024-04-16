@@ -7,11 +7,11 @@ use libp2p::gossipsub::{self, IdentTopic, SubscriptionError};
 use libp2p::multiaddr::Protocol;
 use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace};
 use libp2p::swarm::{Swarm, SwarmEvent};
-use libp2p::{ping, PeerId};
+use libp2p::{ping, relay, PeerId};
+use wasm_bindgen::JsError;
 use std::collections::{HashMap, VecDeque};
 
 use super::behaviour::*;
-use super::client::ClientError;
 
 pub struct EventLoop {
     namespace: Namespace,
@@ -179,6 +179,7 @@ impl EventLoop {
         match event {
             ComposedSwarmEvent::Ping(event) => self.handle_ping_event(event).await,
             ComposedSwarmEvent::Rendezvous(event) => self.handle_rendezvous_event(event).await,
+            ComposedSwarmEvent::Relay(event) => self.handle_relay_event(event).await,
             ComposedSwarmEvent::Gossipsub(event) => self.handle_gossipsub_event(event).await,
         }
     }
@@ -278,6 +279,36 @@ impl EventLoop {
                     rendezvous_node,
                     namespace,
                     error
+                );
+            }
+        }
+    }
+
+    async fn handle_relay_event(&mut self, event: relay::client::Event) {
+        match event {
+            relay::client::Event::ReservationReqAccepted { relay_peer_id, renewal, limit } => {
+                // A reservation request has been accepted.
+                tracing::info!(
+                    "Reservation request accepted for relay {:?} with renewal {:?} and limit {:?}",
+                    relay_peer_id,
+                    renewal,
+                    limit
+                );
+            }
+            relay::client::Event::InboundCircuitEstablished { src_peer_id, limit } => {
+                // An inbound circuit has been established.
+                tracing::info!(
+                    "Inbound circuit established with peer {:?} with limit {:?}",
+                    src_peer_id,
+                    limit
+                );
+            }
+            relay::client::Event::OutboundCircuitEstablished { relay_peer_id, limit } => {
+                // An outbound circuit has been established.
+                tracing::info!(
+                    "Outbound circuit established with relay {:?} with limit {:?}",
+                    relay_peer_id,
+                    limit
                 );
             }
         }
@@ -394,7 +425,7 @@ pub enum Command {
     Dial {
         peer_id: PeerId,
         peer_addr: Multiaddr,
-        sender: oneshot::Sender<Result<(), ClientError>>,
+        sender: oneshot::Sender<Result<(), JsError>>,
     },
     ProvideSegment {
         segment_id: String,
@@ -411,6 +442,16 @@ pub enum Command {
 pub enum RequestError {
     Timeout,
     SubscribeError(SubscriptionError),
+}
+
+impl From<RequestError> for JsError {
+    fn from(error: RequestError) -> Self {
+        match error {
+            RequestError::Timeout => JsError::new("Request timed out"),
+            RequestError::SubscribeError(e) => JsError::new(&format!("Subscription error: {:?}", e)),
+        }
+    }
+
 }
 
 impl From<SubscriptionError> for RequestError {

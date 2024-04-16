@@ -1,6 +1,3 @@
-use futures::{
-    channel::{mpsc::SendError, oneshot::Canceled}
-};
 use js_sys::Uint8Array;
 use libp2p::{
     futures::{
@@ -9,11 +6,11 @@ use libp2p::{
     },
     identity,
     multiaddr::{Multiaddr, Protocol},
-    rendezvous::{Namespace, NamespaceTooLong},
-    swarm::DialError,
+    rendezvous::Namespace,
     PeerId, SwarmBuilder,
 };
 use libp2p_webrtc_websys as webrtc_websys;
+use libp2p_webtransport_websys as webtransport_websys;
 use std::{num::NonZeroU8, panic, time::Duration};
 use tracing_subscriber::{fmt::format::Pretty, prelude::*};
 use tracing_web::{performance_layer, MakeWebConsoleWriter};
@@ -21,11 +18,11 @@ use wasm_bindgen::prelude::*;
 
 use super::{
     behaviour::ComposedSwarmBehaviour,
-    event_loop::{Command, EventLoop, RequestError},
+    event_loop::{Command, EventLoop},
 };
 
 #[wasm_bindgen]
-pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, ClientError> {
+pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, JsError> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_ansi(false) // Only partially supported across browsers
@@ -49,12 +46,19 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, ClientError
     // higher layer network behaviour logic.
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_wasm_bindgen()
-        .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))
-        .map_err(|_| ClientError::ConfigError)?
-        .with_behaviour(|key| ComposedSwarmBehaviour::from(key))
-        .map_err(|_| ClientError::ConfigError)?
+        .with_other_transport(|key| {
+            webtransport_websys::Transport::new(webtransport_websys::Config::new(key))
+        })?
+        .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
+        .with_relay_client(
+            |key| libp2p::noise::Config::new(&keypair),
+            || libp2p::yamux::Config::default(),
+        )?
+        // TODO: implement bandwidth metrics
+        //.with_bandwidth_metrics(...)
+        .with_behaviour(|key, relay_behaviour| ComposedSwarmBehaviour::new(key, relay_behaviour))?
         .with_swarm_config(|c| {
-            c.with_max_negotiating_inbound_streams(32)
+            c.with_max_negotiating_inbound_streams(16)
                 .with_idle_connection_timeout(Duration::from_secs(60))
                 .with_dial_concurrency_factor(NonZeroU8::new(5).unwrap())
         })
@@ -75,9 +79,7 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, ClientError
         .with(Protocol::P2p(rendezvous_id));
 
     tracing::info!("Dialing rendezvous server at {:?}", rendezvous_addr);
-    swarm
-        .dial(rendezvous_addr)
-        .map_err(|_| ClientError::DialError)?;
+    swarm.dial(rendezvous_addr)?;
 
     wasm_bindgen_futures::spawn_local(async move {
         EventLoop::new(namespace, swarm, command_recv).run().await;
@@ -97,7 +99,7 @@ impl P2PClient {
         &mut self,
         segment_id: String,
         segment: Uint8Array,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), JsError> {
         let data = segment.to_vec();
         self.0
             .send(Command::ProvideSegment { segment_id, data })
@@ -106,7 +108,7 @@ impl P2PClient {
     }
 
     /// Request the content of the given file from the given peer.
-    pub async fn request_segment(&mut self, segment_id: String) -> Result<Uint8Array, ClientError> {
+    pub async fn request_segment(&mut self, segment_id: String) -> Result<Uint8Array, JsError> {
         let (sender, receiver) = oneshot::channel();
         self.0
             .send(Command::RequestSegment { segment_id, sender })
@@ -118,61 +120,8 @@ impl P2PClient {
         Ok(buf)
     }
 
-    pub async fn quit(&mut self) -> Result<(), ClientError> {
+    pub async fn quit(&mut self) -> Result<(), JsError> {
         self.0.send(Command::Quit).await?;
         Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub enum ClientError {
-    ConfigError,
-    ListenError,
-    BadNamespace,
-    DialError,
-    ConnectionClosed,
-    RequestError(RequestError),
-}
-
-impl From<ClientError> for wasm_bindgen::JsValue {
-    fn from(val: ClientError) -> Self {
-        match val {
-            ClientError::ConfigError => 3.into(),
-            ClientError::BadNamespace => 0.into(),
-            ClientError::ListenError => 4.into(),
-            ClientError::DialError => 5.into(),
-            ClientError::ConnectionClosed => 1.into(),
-            ClientError::RequestError(_) => 2.into(),
-        }
-    }
-}
-
-impl From<NamespaceTooLong> for ClientError {
-    fn from(_value: NamespaceTooLong) -> Self {
-        ClientError::BadNamespace
-    }
-}
-
-impl From<SendError> for ClientError {
-    fn from(_: SendError) -> Self {
-        ClientError::ConnectionClosed
-    }
-}
-
-impl From<Canceled> for ClientError {
-    fn from(_: Canceled) -> Self {
-        ClientError::ConnectionClosed
-    }
-}
-
-impl From<RequestError> for ClientError {
-    fn from(err: RequestError) -> Self {
-        ClientError::RequestError(err)
-    }
-}
-
-impl From<DialError> for ClientError {
-    fn from(_value: DialError) -> Self {
-        ClientError::DialError
     }
 }
