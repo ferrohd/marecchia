@@ -1,14 +1,15 @@
 use js_sys::Uint8Array;
 use libp2p::{
+    core::upgrade::Version,
     futures::{
         channel::{mpsc, oneshot},
         SinkExt,
     },
     identity,
     multiaddr::{Multiaddr, Protocol},
+    noise,
     rendezvous::Namespace,
-    PeerId, SwarmBuilder,
-    webtransport_websys,
+    websocket_websys, yamux, PeerId, SwarmBuilder, Transport, TransportExt,
 };
 use libp2p_webrtc_websys as webrtc_websys;
 use std::{num::NonZeroU8, panic, time::Duration};
@@ -47,12 +48,16 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, JsError> {
     let mut swarm = SwarmBuilder::with_existing_identity(keypair)
         .with_wasm_bindgen()
         .with_other_transport(|key| {
-            webtransport_websys::Transport::new(webtransport_websys::Config::new(key))
+            websocket_websys::Transport::default()
+                .upgrade(Version::V1)
+                .authenticate(noise::Config::new(key).unwrap())
+                .multiplex(yamux::Config::default())
+                .boxed()
         })?
         .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
         .with_relay_client(
-            |key: &_| libp2p::noise::Config::new(key),
-            || libp2p::yamux::Config::default(),
+            |key: &_| noise::Config::new(key),
+            || yamux::Config::default(),
         )?
         // TODO: implement bandwidth metrics
         //.with_bandwidth_metrics(...)

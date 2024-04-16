@@ -41,10 +41,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         //    noise::Config::new,
         //    yamux::Config::default,
         //)?
-        .with_other_transport(|key| {
-            let config = tcp::Config::new();
-            tcp::tokio::Transport::new(config)
-        })?
+        .with_websocket(
+            |key: &_| noise::Config::new(key),
+            || yamux::Config::default(),
+        ).await?
         .with_bandwidth_metrics(&mut metric_registry)
         .with_behaviour(|key| SwarmBehaviour {
             identify: identify::Behaviour::new(identify::Config::new(
