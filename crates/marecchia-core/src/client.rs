@@ -8,9 +8,9 @@ use libp2p::{
     multiaddr::{Multiaddr, Protocol},
     rendezvous::Namespace,
     PeerId, SwarmBuilder,
+    webtransport_websys,
 };
 use libp2p_webrtc_websys as webrtc_websys;
-use libp2p_webtransport_websys as webtransport_websys;
 use std::{num::NonZeroU8, panic, time::Duration};
 use tracing_subscriber::{fmt::format::Pretty, prelude::*};
 use tracing_web::{performance_layer, MakeWebConsoleWriter};
@@ -51,7 +51,7 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, JsError> {
         })?
         .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
         .with_relay_client(
-            |key| libp2p::noise::Config::new(&keypair),
+            |key: &_| libp2p::noise::Config::new(key),
             || libp2p::yamux::Config::default(),
         )?
         // TODO: implement bandwidth metrics

@@ -2736,7 +2736,6 @@ dependencies = [
  "js-sys",
  "libp2p",
  "libp2p-webrtc-websys",
- "libp2p-webtransport-websys",
  "tracing",
  "tracing-subscriber",
  "tracing-web",
