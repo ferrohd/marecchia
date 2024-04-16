@@ -1,5 +1,8 @@
 # Marecchia Project 🌊
 
+> [!IMPORTANT]
+> 🚧 This project is still under active development and not production-ready
+
 [![CI](https://github.com/ferrohd/marecchia/actions/workflows/ci.yml/badge.svg)](https://github.com/ferrohd/marecchia/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 [![GitHub stars](https://img.shields.io/github/stars/ferrohd/marecchia?style=social)](https://github.com/ferrohd/marecchia)
