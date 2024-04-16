@@ -11,7 +11,7 @@ repository.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-async-trait = "^0.1.79"
+async-trait = "^0.1.80"
 console_error_panic_hook = "0.1.7"
 libp2p = { version = "^0.53.2", features = [
     "wasm-bindgen",
