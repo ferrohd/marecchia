@@ -4,6 +4,7 @@ use libp2p::{
     autonat,
     gossipsub::{self, MessageAuthenticity},
     identity::Keypair,
+    identify,
     ping, relay,
     rendezvous::client as rendezvous,
     swarm::NetworkBehaviour,
@@ -13,6 +14,7 @@ use libp2p::{
 #[behaviour(to_swarm = "ComposedSwarmEvent")]
 pub struct ComposedSwarmBehaviour {
     pub ping: ping::Behaviour,
+    pub identify: identify::Behaviour,
     pub rendezvous: rendezvous::Behaviour,
     pub relay: relay::client::Behaviour,
     pub pubsub: gossipsub::Behaviour,
@@ -30,6 +32,10 @@ impl ComposedSwarmBehaviour {
         let autonat_config = autonat::Config::default();
         let _autonat = autonat::Behaviour::new(peer_id, autonat_config);
 
+        let identify_config =
+            identify::Config::new("/marecchia-identify/0.0.1".to_string(), keypair.public());
+        let identify = identify::Behaviour::new(identify_config);
+
         let rendezvous = rendezvous::Behaviour::new(keypair.to_owned());
         // TODO: FINISH CONFIG
         let gossipsub_config = gossipsub::Config::default();
@@ -42,6 +48,7 @@ impl ComposedSwarmBehaviour {
         Self {
             ping,
             //autonat,
+            identify,
             pubsub,
             rendezvous,
             relay: relay_behaviour,
@@ -52,6 +59,7 @@ impl ComposedSwarmBehaviour {
 #[derive(Debug)]
 pub enum ComposedSwarmEvent {
     Ping(ping::Event),
+    Identify(identify::Event),
     Rendezvous(rendezvous::Event),
     Relay(relay::client::Event),
     Gossipsub(gossipsub::Event),
@@ -60,6 +68,12 @@ pub enum ComposedSwarmEvent {
 impl From<ping::Event> for ComposedSwarmEvent {
     fn from(event: ping::Event) -> Self {
         ComposedSwarmEvent::Ping(event)
+    }
+}
+
+impl From<identify::Event> for ComposedSwarmEvent {
+    fn from(event: identify::Event) -> Self {
+        ComposedSwarmEvent::Identify(event)
     }
 }
 

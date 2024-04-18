@@ -7,9 +7,9 @@ use libp2p::gossipsub::{self, IdentTopic, SubscriptionError};
 use libp2p::multiaddr::Protocol;
 use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace};
 use libp2p::swarm::{Swarm, SwarmEvent};
-use libp2p::{ping, relay, PeerId};
-use wasm_bindgen::JsError;
+use libp2p::{identify, ping, relay, PeerId};
 use std::collections::{HashMap, VecDeque};
+use wasm_bindgen::JsError;
 
 use super::behaviour::*;
 
@@ -178,6 +178,7 @@ impl EventLoop {
     async fn handle_behaviour_event(&mut self, event: ComposedSwarmEvent) {
         match event {
             ComposedSwarmEvent::Ping(event) => self.handle_ping_event(event).await,
+            ComposedSwarmEvent::Identify(event) => self.handle_identify_event(event).await,
             ComposedSwarmEvent::Rendezvous(event) => self.handle_rendezvous_event(event).await,
             ComposedSwarmEvent::Relay(event) => self.handle_relay_event(event).await,
             ComposedSwarmEvent::Gossipsub(event) => self.handle_gossipsub_event(event).await,
@@ -202,6 +203,39 @@ impl EventLoop {
                     failure
                 );
                 let _ = self.swarm.disconnect_peer_id(ping_event.peer);
+            }
+        }
+    }
+
+    async fn handle_identify_event(&mut self, identify_event: identify::Event) {
+        match identify_event {
+            identify::Event::Received { peer_id, info } => {
+                // Received identification information from a peer.
+                tracing::info!(
+                    "Received identification information from peer {:?} with info {:?}",
+                    peer_id,
+                    info,
+                );
+            }
+            identify::Event::Sent { peer_id } => {
+                // Sent identification information to a peer in response to a request.
+                tracing::info!("Sent identification information to peer {:?}", peer_id);
+            }
+            identify::Event::Pushed { peer_id, info } => {
+                //Identification information of the local node has been actively pushed to a peer
+                tracing::info!(
+                    "Pushed identification information to peer {:?} with info {:?}",
+                    peer_id,
+                    info
+                );
+            }
+            identify::Event::Error { peer_id, error } => {
+                // Failed to send identification information to a peer.
+                tracing::error!(
+                    "Failed to send identification information to peer {:?} with error {:?}",
+                    peer_id,
+                    error
+                );
             }
         }
     }
@@ -286,7 +320,11 @@ impl EventLoop {
 
     async fn handle_relay_event(&mut self, event: relay::client::Event) {
         match event {
-            relay::client::Event::ReservationReqAccepted { relay_peer_id, renewal, limit } => {
+            relay::client::Event::ReservationReqAccepted {
+                relay_peer_id,
+                renewal,
+                limit,
+            } => {
                 // A reservation request has been accepted.
                 tracing::info!(
                     "Reservation request accepted for relay {:?} with renewal {:?} and limit {:?}",
@@ -303,7 +341,10 @@ impl EventLoop {
                     limit
                 );
             }
-            relay::client::Event::OutboundCircuitEstablished { relay_peer_id, limit } => {
+            relay::client::Event::OutboundCircuitEstablished {
+                relay_peer_id,
+                limit,
+            } => {
                 // An outbound circuit has been established.
                 tracing::info!(
                     "Outbound circuit established with relay {:?} with limit {:?}",
@@ -328,8 +369,7 @@ impl EventLoop {
                     propagation_source,
                     message.topic.as_str()
                 );
-                if let Some(sender) = self.segment_request.remove(message.topic.as_str())
-                {
+                if let Some(sender) = self.segment_request.remove(message.topic.as_str()) {
                     let _ = sender.send(Ok(message.data));
                 }
             }
@@ -435,7 +475,7 @@ pub enum Command {
         segment_id: String,
         sender: oneshot::Sender<Result<Vec<u8>, RequestError>>,
     },
-    Quit
+    Quit,
 }
 
 #[derive(Debug)]
@@ -448,10 +488,11 @@ impl From<RequestError> for JsError {
     fn from(error: RequestError) -> Self {
         match error {
             RequestError::Timeout => JsError::new("Request timed out"),
-            RequestError::SubscribeError(e) => JsError::new(&format!("Subscription error: {:?}", e)),
+            RequestError::SubscribeError(e) => {
+                JsError::new(&format!("Subscription error: {:?}", e))
+            }
         }
     }
-
 }
 
 impl From<SubscriptionError> for RequestError {

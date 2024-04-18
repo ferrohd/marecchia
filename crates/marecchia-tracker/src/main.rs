@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_bandwidth_metrics(&mut metric_registry)
         .with_behaviour(|key| SwarmBehaviour {
             identify: identify::Behaviour::new(identify::Config::new(
-                "rendezvous-example/0.0.1".to_string(),
+                "/marecchia-identify/0.0.1".to_string(),
                 key.public(),
             )),
             rendezvous: rendezvous::server::Behaviour::new(rendezvous::server::Config::default()),
