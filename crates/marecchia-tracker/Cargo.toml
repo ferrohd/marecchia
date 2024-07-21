@@ -19,7 +19,7 @@ prometheus-client = "0.22.2"
 sha3 = "0.10.8"
 tokio = { version = "1.37", features = ["full"] }
 tracing = "0.1.40"
-tracing-opentelemetry = "0.24.0"
+tracing-opentelemetry = "0.25.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [lints]
