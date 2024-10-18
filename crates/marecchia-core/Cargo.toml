@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 async-trait = "^0.1.80"
 console_error_panic_hook = "0.1.7"
-libp2p = { version = "^0.53.2", features = ["full"] }
+libp2p = { version = "^0.54.0", features = ["full"] }
 libp2p-webrtc-websys = "0.3.0-alpha"
 
 wasm-bindgen = "^0.2.92"
