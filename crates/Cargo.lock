@@ -1646,7 +1646,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.7",
  "tokio",
  "tower-service",
  "tracing",
@@ -2585,9 +2585,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-webrtc-utils"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91f11471ca53e34254033c0ecb94c06ab8b4c856de396706b6a7d273be1bf687"
+checksum = "95eb35ba4991eab0284c2fc2d535b0a53fe10005001284c89f3cb01c5b0e1249"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -2608,16 +2608,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-webrtc-websys"
-version = "0.3.0-alpha"
+version = "0.4.0-alpha"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0831af98b9a29453c72e5f0973d8af8abc94ec8937cafae848a9bd7c97b6747"
+checksum = "a3b46cbe03b63256faffb83ad7388d3bda615e8ae7101b56d6920419040d50af"
 dependencies = [
  "bytes",
  "futures",
  "getrandom 0.2.15",
  "hex",
  "js-sys",
- "libp2p-core 0.41.2",
+ "libp2p-core 0.42.0",
  "libp2p-identity",
  "libp2p-webrtc-utils",
  "send_wrapper 0.6.0",
