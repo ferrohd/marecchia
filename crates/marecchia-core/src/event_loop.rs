@@ -414,6 +414,10 @@ impl EventLoop {
                     peer_id
                 );
                 let _ = self.swarm.disconnect_peer_id(peer_id);
+            },
+            gossipsub::Event::SlowPeer { peer_id, failed_messages } => {
+                tracing::warn!("Peer {:?} is slow, failed messages {:?}", peer_id, failed_messages);
+                let _ = self.swarm.disconnect_peer_id(peer_id);
             }
         }
     }
