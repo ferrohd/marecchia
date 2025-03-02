@@ -9,24 +9,33 @@
   "assignees": [
     "ferrohd"
   ],
-  "dependencyDashboard": false,
+  "dependencyDashboard": true,
   "enabled": true,
   "automerge": true,
-  "major": {
-    "automerge": false
-  },
   "packageRules": [
     {
       "groupName": "Cargo Dependencies",
       "matchManagers": [
         "cargo"
-      ]
+      ],
+      "separateMajorMinor": true,
+      "separateMultipleMajor": true,
+      "separateMinorPatch": true
     },
     {
       "groupName": "GitHub Actions",
       "matchManagers": [
         "github-actions"
       ]
+    },
+    {
+      "groupName": "npm Dependencies",
+      "matchManagers": [
+        "npm"
+      ],
+      "separateMajorMinor": true,
+      "separateMultipleMajor": true,
+      "separateMinorPatch": true
     }
   ],
   "vulnerabilityAlerts": {
