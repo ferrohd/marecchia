@@ -57,11 +57,11 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, JsError> {
         .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
         .with_relay_client(
             |key: &_| noise::Config::new(key),
-            || yamux::Config::default(),
+            yamux::Config::default,
         )?
         // TODO: implement bandwidth metrics
         //.with_bandwidth_metrics(...)
-        .with_behaviour(|key, relay_behaviour| ComposedSwarmBehaviour::new(key, relay_behaviour))?
+        .with_behaviour(ComposedSwarmBehaviour::new)?
         .with_swarm_config(|c| {
             c.with_max_negotiating_inbound_streams(16)
                 .with_idle_connection_timeout(Duration::from_secs(60))
