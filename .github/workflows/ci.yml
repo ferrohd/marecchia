@@ -50,48 +50,6 @@ jobs:
             #  run: |
             #    cargo rs-clippy --
 
-    rs-build:
-        name: 🔨 Build Rust
-        needs: rs-toolchain
-        runs-on: ubuntu-latest
-        steps:
-            - name: 🛒 Checkout
-              uses: actions/checkout@v4
-
-            - name: ⚡ Cache
-              uses: actions/cache@v4
-              with:
-                path: |
-                  ~/.cargo/bin/
-                  ~/.cargo/registry/index/
-                  ~/.cargo/registry/cache/
-                  ~/.cargo/git/db/
-                  target
-                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-
-            - name: 🪛 Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                node-version: '20'
-
-            - name: 📦 Install wasm-pack
-              working-directory: crates
-              run: npm install -g wasm-pack
-
-            - name: 🎯 Install WASM Target
-              working-directory: crates
-              run: rustup target add wasm32-unknown-unknown
-
-            - name: 🔨 Build
-              working-directory: crates/marecchia-core
-              run: wasm-pack build --target web --scope marecchia
-
-            - name: 💾 Save Artifact
-              uses: actions/upload-artifact@v4
-              with:
-                name: marecchia-core
-                path: ./crates/marecchia-core/pkg
-
     rs-test:
         name: 🧪 Test
         needs: rs-toolchain
@@ -116,12 +74,54 @@ jobs:
             #  run: |
             #    cargo rs-test --all
 
+    rs-build-marecchia-core:
+        name: 🔨 Build @marecchia/marecchia-core
+        needs: rs-toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: ⚡ Cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/bin/
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target
+                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+            - name: 🪛 Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                node-version: '22'
+
+            - name: 📦 Install wasm-pack
+              working-directory: crates
+              run: npm install -g wasm-pack
+
+            - name: 🎯 Install WASM Target
+              working-directory: crates
+              run: rustup target add wasm32-unknown-unknown
+
+            - name: 🔨 Build
+              working-directory: crates/marecchia-core
+              run: wasm-pack build --target web --scope marecchia
+
+            - name: 💾 Save Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: marecchia-core
+                path: ./crates/marecchia-core/pkg
+
     ts-build:
         name: 🛠️ Build Typescript
         runs-on: ubuntu-latest
-        needs: rs-build
+        needs: rs-build-marecchia-core
         strategy:
-          fail-fast: true
+          fail-fast: false
           matrix:
             packages:
               - name: '@marecchia/hlsjs'
@@ -142,15 +142,38 @@ jobs:
                 name: marecchia-core
                 path: ./crates/marecchia-core/pkg
 
-            - name: 📦 Install Dependencies
-              working-directory: marecchia
-              run: npm install
-
-            - name: 🛠️ Build
-              working-directory: marecchia/packages/${{ matrix.packages.path }}
-              run: npm run build
-
             - name: 🗑️ Delete Artifact
               uses: geekyeggo/delete-artifact@v5
               with:
                   name: marecchia-core
+
+            - name: 📦 Install Dependencies
+              working-directory: marecchia
+              run: npm install
+
+            - name: 🛠️ Build ${{ matrix.packages.name }}
+              working-directory: marecchia/packages/${{ matrix.packages.path }}
+              run: npm run build
+
+    rs-build-marecchia-tracker:
+        name: 🔨 Build Marecchia Tracker
+        needs: rs-toolchain
+        runs-on: ubuntu-latest
+        steps:
+            - name: 🛒 Checkout
+              uses: actions/checkout@v4
+
+            - name: ⚡ Cache
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/bin/
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target
+                key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+            - name: 🔨 Build
+              working-directory: crates/marecchia-tracker
+              run: cargo build --release
