@@ -209,30 +209,52 @@ impl EventLoop {
 
     async fn handle_identify_event(&mut self, identify_event: identify::Event) {
         match identify_event {
-            identify::Event::Received { peer_id, info } => {
+            identify::Event::Received {
+                peer_id,
+                info,
+                connection_id,
+            } => {
                 // Received identification information from a peer.
                 tracing::info!(
-                    "Received identification information from peer {:?} with info {:?}",
+                    "Conn: {}, Received identification information from peer {:?} with info {:?}",
+                    connection_id,
                     peer_id,
                     info,
                 );
             }
-            identify::Event::Sent { peer_id } => {
+            identify::Event::Sent {
+                peer_id,
+                connection_id,
+            } => {
                 // Sent identification information to a peer in response to a request.
-                tracing::info!("Sent identification information to peer {:?}", peer_id);
+                tracing::info!(
+                    "Conn {}, Sent identification information to peer {:?}",
+                    connection_id,
+                    peer_id
+                );
             }
-            identify::Event::Pushed { peer_id, info } => {
+            identify::Event::Pushed {
+                peer_id,
+                info,
+                connection_id,
+            } => {
                 //Identification information of the local node has been actively pushed to a peer
                 tracing::info!(
-                    "Pushed identification information to peer {:?} with info {:?}",
+                    "Con {}, Pushed identification information to peer {:?} with info {:?}",
+                    connection_id,
                     peer_id,
                     info
                 );
             }
-            identify::Event::Error { peer_id, error } => {
+            identify::Event::Error {
+                peer_id,
+                error,
+                connection_id,
+            } => {
                 // Failed to send identification information to a peer.
                 tracing::error!(
-                    "Failed to send identification information to peer {:?} with error {:?}",
+                    "Conn {}, Failed to send identification information to peer {:?} with error {:?}",
+                    connection_id,
                     peer_id,
                     error
                 );
@@ -391,6 +413,10 @@ impl EventLoop {
                     "Remote peer {:?} connected but does not support gossipsub, disconnecting",
                     peer_id
                 );
+                let _ = self.swarm.disconnect_peer_id(peer_id);
+            },
+            gossipsub::Event::SlowPeer { peer_id, failed_messages } => {
+                tracing::warn!("Peer {:?} is slow, failed messages {:?}", peer_id, failed_messages);
                 let _ = self.swarm.disconnect_peer_id(peer_id);
             }
         }

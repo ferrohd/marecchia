@@ -9,7 +9,7 @@ use libp2p::{
     multiaddr::{Multiaddr, Protocol},
     noise,
     rendezvous::Namespace,
-    websocket_websys, yamux, PeerId, SwarmBuilder, Transport, TransportExt,
+    websocket_websys, yamux, PeerId, SwarmBuilder, Transport,
 };
 use libp2p_webrtc_websys as webrtc_websys;
 use std::{num::NonZeroU8, panic, time::Duration};

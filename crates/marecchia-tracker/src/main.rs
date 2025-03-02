@@ -1,24 +1,21 @@
 use libp2p::{
+    core::Multiaddr,
     futures::StreamExt,
-    identify,
+    identify, identity,
     metrics::{Metrics, Recorder},
     multiaddr::Protocol,
-    multihash::Multihash,
     noise, ping, relay, rendezvous,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux, Multiaddr,
+    tcp, yamux,
 };
-use opentelemetry::KeyValue;
-use prometheus_client::registry::Registry;
+use libp2p_metrics::Registry;
+use opentelemetry::{trace::TracerProvider as _, KeyValue};
+use opentelemetry_otlp::SpanExporter;
+use opentelemetry_sdk::{runtime, trace::SdkTracerProvider};
 use sha3::{Digest, Sha3_512};
+use std::{error::Error, net::Ipv4Addr, time::Duration};
 use tokio::signal::unix::SignalKind;
-
-use std::{default, hash::Hash, time::Duration};
-use std::{
-    error::Error,
-    net::{Ipv4Addr, Ipv6Addr},
-};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 mod metrics;
 
@@ -44,7 +41,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_websocket(
             |key: &_| noise::Config::new(key),
             || yamux::Config::default(),
-        ).await?
+        )
+        .await?
         .with_bandwidth_metrics(&mut metric_registry)
         .with_behaviour(|key| SwarmBehaviour {
             identify: identify::Behaviour::new(identify::Config::new(
@@ -131,18 +129,48 @@ async fn handle_behaviour_event(
 
 async fn handle_identify_event(swarm: &mut libp2p::Swarm<SwarmBehaviour>, event: identify::Event) {
     match event {
-        identify::Event::Received { peer_id, info } => {
-            tracing::info!("Received: {} {:?}", peer_id, info);
+        identify::Event::Received {
+            peer_id,
+            connection_id,
+            info,
+        } => {
+            tracing::info!(
+                "Received from connection {}: {} {:?}",
+                connection_id,
+                peer_id,
+                info
+            );
         }
-        identify::Event::Sent { peer_id } => {
-            tracing::info!("Sent: {}", peer_id);
+        identify::Event::Sent {
+            peer_id,
+            connection_id,
+        } => {
+            tracing::info!("Sent from connection {}: {}", connection_id, peer_id);
         }
-        identify::Event::Error { peer_id, error } => {
+        identify::Event::Error {
+            peer_id,
+            connection_id,
+            error,
+        } => {
             let _ = swarm.disconnect_peer_id(peer_id);
-            tracing::info!("Error: {} {:?}", peer_id, error);
+            tracing::info!(
+                "Error from connection {}: {} {:?}",
+                connection_id,
+                peer_id,
+                error
+            );
         }
-        identify::Event::Pushed { peer_id, info } => {
-            tracing::info!("Pushed: {} {:?}", peer_id, info);
+        identify::Event::Pushed {
+            peer_id,
+            connection_id,
+            info,
+        } => {
+            tracing::info!(
+                "Pushed to connection {}: {} {:?}",
+                connection_id,
+                peer_id,
+                info
+            );
         }
     }
 }
@@ -303,26 +331,21 @@ impl From<ping::Event> for ComposedSwarmEvent {
 }
 
 fn setup_tracing() -> Result<(), Box<dyn Error>> {
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(opentelemetry_otlp::new_exporter().tonic())
-        .with_trace_config(opentelemetry_sdk::trace::Config::default().with_resource(
-            opentelemetry_sdk::Resource::new(vec![KeyValue::new(
-                "service.name",
-                "marecchia-tracker",
-            )]),
-        ))
-        .install_batch(opentelemetry_sdk::runtime::Tokio)?;
-
-    let filter_layer = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info"))?;
-    let fmt_layer = tracing_subscriber::fmt::layer();
-    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-
+    let resource = opentelemetry_sdk::resource::Resource::builder()
+        .with_attribute(KeyValue::new("service.name", "libp2p"))
+        .build();
+    let provider = SdkTracerProvider::builder()
+        .with_batch_exporter(SpanExporter::builder().with_tonic().build()?)
+        .with_resource(resource)
+        .build();
     tracing_subscriber::registry()
-        .with(filter_layer)
-        .with(fmt_layer)
-        .with(otel_layer)
-        .try_init()?;
+        .with(tracing_subscriber::fmt::layer().with_filter(EnvFilter::from_default_env()))
+        .with(
+            tracing_opentelemetry::layer()
+                .with_tracer(provider.tracer("libp2p-subscriber"))
+                .with_filter(EnvFilter::from_default_env()),
+        )
+        .init();
 
     Ok(())
 }
