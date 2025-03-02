@@ -6,12 +6,10 @@ authors.workspace = true
 edition.workspace = true
 repository.workspace = true
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 hyper = { version = "1.5.2", features = ["server", "http1"] }
 hyper-util = {version = "0.1.10", features = ["tokio", "server", "http1"]}
-libp2p = { version = "0.55.0", features = ["full"] }
+libp2p = { workspace = true }
 libp2p-metrics = "0.16.0"
 opentelemetry = { version = "0.28.0", features = ["metrics"] }
 opentelemetry-otlp = { version = "0.28.0", features = ["tokio", "metrics", "grpc-tonic"] }
@@ -19,9 +17,9 @@ opentelemetry_sdk = { version = "0.28.0", features = ["rt-tokio", "metrics"] }
 prometheus-client = "0.22.3"
 sha3 = "0.10.8"
 tokio = { version = "1.43", features = ["full"] }
-tracing = "0.1.41"
+tracing = { workspace = true }
 tracing-opentelemetry = "0.29.0"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [lints]
 workspace = true
