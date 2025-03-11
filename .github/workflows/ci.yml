@@ -134,7 +134,7 @@ jobs:
             - name: 🪛 Setup Node.js
               uses: actions/setup-node@v4
               with:
-                node-version: '20'
+                node-version: '22'
 
             - name: Get @marecchia/marecchia-core
               uses: actions/download-artifact@v4
