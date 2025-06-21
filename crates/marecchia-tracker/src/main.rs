@@ -9,15 +9,13 @@ use libp2p::{
     tcp, yamux,
 };
 use libp2p_metrics::Registry;
-use opentelemetry::{trace::TracerProvider as _, KeyValue};
+use opentelemetry::{KeyValue, trace::TracerProvider as _};
 use opentelemetry_otlp::SpanExporter;
-use opentelemetry_sdk::{runtime, trace::SdkTracerProvider};
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use sha3::{Digest, Sha3_512};
 use std::{error::Error, net::Ipv4Addr, time::Duration};
 use tokio::signal::unix::SignalKind;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
-
-mod metrics;
+use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -57,7 +55,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .build();
 
     let metrics = Metrics::new(&mut metric_registry);
-    tokio::spawn(metrics::metrics_server(metric_registry));
 
     let listen_addr = Multiaddr::empty()
         .with(Protocol::Ip4(Ipv4Addr::UNSPECIFIED))

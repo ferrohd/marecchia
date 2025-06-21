@@ -176,4 +176,4 @@ jobs:
 
             - name: 🔨 Build
               working-directory: crates/marecchia-tracker
-              run: cargo build --release
+              run: cargo build
