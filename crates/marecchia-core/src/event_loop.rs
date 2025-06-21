@@ -5,9 +5,9 @@ use libp2p::futures::{
 };
 use libp2p::gossipsub::{self, IdentTopic, SubscriptionError};
 use libp2p::multiaddr::Protocol;
-use libp2p::rendezvous::{client as rendezvous, Cookie, Namespace};
+use libp2p::rendezvous::{Cookie, Namespace, client as rendezvous};
 use libp2p::swarm::{Swarm, SwarmEvent};
-use libp2p::{identify, ping, relay, PeerId};
+use libp2p::{PeerId, identify, ping, relay};
 use std::collections::{HashMap, VecDeque};
 use wasm_bindgen::JsError;
 
@@ -104,7 +104,14 @@ impl EventLoop {
                 cause,
             } => {
                 // A connection has been closed.
-                tracing::info!("Connection {:?} closed  on endpoint {:?} with peer {:?} with error {:?}, {:?} connections remaining", connection_id, endpoint, peer_id, cause, num_established);
+                tracing::info!(
+                    "Connection {:?} closed  on endpoint {:?} with peer {:?} with error {:?}, {:?} connections remaining",
+                    connection_id,
+                    endpoint,
+                    peer_id,
+                    cause,
+                    num_established
+                );
             }
             SwarmEvent::OutgoingConnectionError {
                 connection_id,
@@ -414,9 +421,16 @@ impl EventLoop {
                     peer_id
                 );
                 let _ = self.swarm.disconnect_peer_id(peer_id);
-            },
-            gossipsub::Event::SlowPeer { peer_id, failed_messages } => {
-                tracing::warn!("Peer {:?} is slow, failed messages {:?}", peer_id, failed_messages);
+            }
+            gossipsub::Event::SlowPeer {
+                peer_id,
+                failed_messages,
+            } => {
+                tracing::warn!(
+                    "Peer {:?} is slow, failed messages {:?}",
+                    peer_id,
+                    failed_messages
+                );
                 let _ = self.swarm.disconnect_peer_id(peer_id);
             }
         }

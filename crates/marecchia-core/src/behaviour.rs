@@ -3,8 +3,8 @@ use std::time::Duration;
 use libp2p::{
     autonat,
     gossipsub::{self, MessageAuthenticity},
-    identity::Keypair,
     identify,
+    identity::Keypair,
     ping, relay,
     rendezvous::client as rendezvous,
     swarm::NetworkBehaviour,

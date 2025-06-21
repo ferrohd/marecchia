@@ -1,20 +1,21 @@
 use js_sys::Uint8Array;
 use libp2p::{
+    PeerId, SwarmBuilder, Transport,
     core::upgrade::Version,
     futures::{
-        channel::{mpsc, oneshot},
         SinkExt,
+        channel::{mpsc, oneshot},
     },
     identity,
     multiaddr::{Multiaddr, Protocol},
     noise,
     rendezvous::Namespace,
-    websocket_websys, yamux, PeerId, SwarmBuilder, Transport,
+    websocket_websys, yamux,
 };
 use libp2p_webrtc_websys as webrtc_websys;
 use std::{num::NonZeroU8, panic, time::Duration};
 use tracing_subscriber::{fmt::format::Pretty, prelude::*};
-use tracing_web::{performance_layer, MakeWebConsoleWriter};
+use tracing_web::{MakeWebConsoleWriter, performance_layer};
 use wasm_bindgen::prelude::*;
 
 use super::{
@@ -55,10 +56,7 @@ pub fn new_p2p_client(stream_namespace: String) -> Result<P2PClient, JsError> {
                 .boxed()
         })?
         .with_other_transport(|key| webrtc_websys::Transport::new(webrtc_websys::Config::new(key)))?
-        .with_relay_client(
-            |key: &_| noise::Config::new(key),
-            yamux::Config::default,
-        )?
+        .with_relay_client(|key: &_| noise::Config::new(key), yamux::Config::default)?
         // TODO: implement bandwidth metrics
         //.with_bandwidth_metrics(...)
         .with_behaviour(ComposedSwarmBehaviour::new)?
