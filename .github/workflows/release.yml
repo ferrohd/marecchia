@@ -86,7 +86,7 @@ jobs:
               run: wasm-pack build --release --target web --scope marecchia
 
             - name: 🪛 Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                 node-version: 'lts/*'
                 registry-url: 'https://registry.npmjs.org'
@@ -125,7 +125,7 @@ jobs:
                 path: ./crates/marecchia-core/pkg
 
             - name: 🪛 Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                 node-version: 'lts/*'
                 registry-url: 'https://registry.npmjs.org'
