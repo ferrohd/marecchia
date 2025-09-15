@@ -92,7 +92,7 @@ jobs:
                 registry-url: 'https://registry.npmjs.org'
 
             - name: 📦 Publish Package
-              uses: JS-DevTools/npm-publish@v3
+              uses: JS-DevTools/npm-publish@v4
               with:
                 token: ${{ secrets.NPM_TOKEN }}
                 package: ./crates/marecchia-core/pkg
@@ -139,7 +139,7 @@ jobs:
               run: npm run build
 
             - name: 📦 Publish Package
-              uses: JS-DevTools/npm-publish@v3
+              uses: JS-DevTools/npm-publish@v4
               with:
                 token: ${{ secrets.NPM_TOKEN }}
                 package: marecchia/packages/${{ matrix.packages.path }}
