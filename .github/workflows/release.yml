@@ -31,7 +31,7 @@ jobs:
             packages: write
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v5
+              uses: actions/checkout@v6
 
             - name: 🎭 Set up QEMU
               uses: docker/setup-qemu-action@v3
@@ -71,7 +71,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v5
+              uses: actions/checkout@v6
 
             - name: 📦 Install wasm-pack
               working-directory: crates
@@ -116,7 +116,7 @@ jobs:
                 path: hlsjs
         steps:
             - name: 🛒 Checkout
-              uses: actions/checkout@v5
+              uses: actions/checkout@v6
 
             - name: 🔽 Get WASM Artifact
               uses: actions/download-artifact@v6
