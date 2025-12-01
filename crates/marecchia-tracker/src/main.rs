@@ -230,8 +230,15 @@ async fn handle_relay_event(swarm: &mut libp2p::Swarm<SwarmBehaviour>, event: re
                 renewed
             );
         }
-        relay::Event::ReservationReqDenied { src_peer_id } => {
-            tracing::info!("Reservation request denied from {}", src_peer_id);
+        relay::Event::ReservationReqDenied {
+            src_peer_id,
+            status,
+        } => {
+            tracing::info!(
+                "Reservation request denied from {} with status {:?}",
+                src_peer_id,
+                status
+            );
         }
         relay::Event::CircuitReqAccepted {
             src_peer_id,
@@ -246,11 +253,13 @@ async fn handle_relay_event(swarm: &mut libp2p::Swarm<SwarmBehaviour>, event: re
         relay::Event::CircuitReqDenied {
             src_peer_id,
             dst_peer_id,
+            status,
         } => {
             tracing::info!(
-                "Circuit request denied from {} to {}",
+                "Circuit request denied from {} to {} with status {:?}",
                 src_peer_id,
-                dst_peer_id
+                dst_peer_id,
+                status
             );
         }
         relay::Event::CircuitClosed {

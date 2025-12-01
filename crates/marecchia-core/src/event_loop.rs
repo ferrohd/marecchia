@@ -128,6 +128,7 @@ impl EventLoop {
                 );
             }
             SwarmEvent::IncomingConnectionError {
+                peer_id,
                 connection_id,
                 local_addr,
                 send_back_addr,
@@ -135,10 +136,11 @@ impl EventLoop {
             } => {
                 // An incoming connection has failed during initial handshake.
                 tracing::error!(
-                    "Incoming  handshake connection {:?} on {:?} from {:?} failed with error {:?}",
+                    "Incoming  handshake connection {:?} on {:?} from {:?} to {:?} failed with error {:?}",
                     connection_id,
                     local_addr,
                     send_back_addr,
+                    peer_id,
                     error
                 );
             }
