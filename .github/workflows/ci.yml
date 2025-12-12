@@ -111,7 +111,7 @@ jobs:
               run: wasm-pack build --target web --scope marecchia
 
             - name: 💾 Save Artifact
-              uses: actions/upload-artifact@v5
+              uses: actions/upload-artifact@v6
               with:
                 name: marecchia-core
                 path: ./crates/marecchia-core/pkg
@@ -137,7 +137,7 @@ jobs:
                 node-version: '24'
 
             - name: Get @marecchia/marecchia-core
-              uses: actions/download-artifact@v6
+              uses: actions/download-artifact@v7
               with:
                 name: marecchia-core
                 path: ./crates/marecchia-core/pkg
