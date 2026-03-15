@@ -150,6 +150,6 @@ jobs:
         needs: marecchia-libraries
         steps:
             - name: 🗑️ Delete Artifact
-              uses: geekyeggo/delete-artifact@v5
+              uses: geekyeggo/delete-artifact@v6
               with:
                   name: marecchia-core
